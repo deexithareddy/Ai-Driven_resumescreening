@@ -1,0 +1,52 @@
+Job Title: Senior Python Engineer — Machine Learning Platform
+Company: InnovateTech Solutions
+Location: San Francisco, CA (Hybrid)
+Employment Type: Full-Time
+
+ABOUT THE ROLE
+We are looking for a talented and experienced Senior Python Engineer to join our Machine Learning
+Platform team. You will design, build, and maintain scalable backend systems and ML pipelines
+that power our AI-driven products. You will work closely with data scientists, product managers,
+and frontend engineers in a fast-paced agile environment.
+
+RESPONSIBILITIES
+- Design and implement high-performance Python backend services and REST APIs
+- Build and maintain machine learning pipelines for NLP and computer vision applications
+- Deploy and monitor ML models in production using MLOps best practices
+- Architect scalable microservices on AWS using Docker and Kubernetes
+- Collaborate with data scientists to productionize machine learning models
+- Implement CI/CD pipelines and maintain DevOps infrastructure
+- Mentor junior engineers and conduct thorough code reviews
+- Participate in system design discussions and technical planning
+
+REQUIRED QUALIFICATIONS
+- 5+ years of professional software engineering experience
+- Strong proficiency in Python (Django, Flask, or FastAPI)
+- Hands-on experience with machine learning libraries: scikit-learn, TensorFlow, or PyTorch
+- Solid understanding of NLP concepts and text processing
+- Experience with SQL and NoSQL databases (PostgreSQL, MongoDB, Redis)
+- Proficiency with cloud platforms, especially AWS (EC2, S3, Lambda)
+- Experience with Docker, Kubernetes, and CI/CD pipelines
+- Strong knowledge of REST API design and microservices architecture
+- Familiarity with Git, Linux, and Agile/Scrum methodologies
+- Excellent problem solving and analytical skills
+- Strong communication and teamwork abilities
+
+PREFERRED QUALIFICATIONS
+- Experience with data structures and algorithms
+- Knowledge of GraphQL
+- AWS certifications (Solutions Architect, Developer)
+- Experience with Spark or Hadoop for big data processing
+- Contributions to open-source projects
+
+WHAT WE OFFER
+- Competitive salary ($150K–$200K based on experience)
+- Equity package and performance bonuses
+- Comprehensive health, dental, and vision insurance
+- Flexible work arrangements (hybrid)
+- $5,000 annual learning & development budget
+- 401(k) with company matching
+
+TECH STACK
+Python, FastAPI, PostgreSQL, MongoDB, Redis, AWS, Docker, Kubernetes, scikit-learn, TensorFlow,
+PyTorch, pandas, numpy, GitHub Actions, Terraform, Elasticsearch

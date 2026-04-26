@@ -1,0 +1,47 @@
+Rajiv Narayan
+Software Engineer
+Email: rajiv.narayan92@gmail.com | Phone: +91-98412-37650
+Location: Pune, Maharashtra | GitHub: github.com/rajivn92
+
+ABOUT ME
+I've been writing code since my second year of college when I got hooked on building small tools that actually worked. Over the past 6 years I've mostly worked with Python and JavaScript, building backends and internal tools for two companies. I'm not the person who knows every new framework — I pick what works for the job and learn it properly. I like debugging hard problems and I really enjoy writing clean APIs. Outside of work I tinker with Raspberry Pi projects and I've been learning Go on weekends.
+
+SKILLS
+Languages: Python, JavaScript, SQL, some Go, a bit of C from college
+Web: Django, Flask, Express.js, React (comfortable but not an expert)
+Databases: PostgreSQL, MySQL, Redis
+Tools: Git, Docker, Linux, Jenkins, Postman, VS Code
+Other: REST API design, basic AWS (EC2, S3, RDS), unit testing with pytest
+
+WORK EXPERIENCE
+
+Software Engineer — FinStack Technologies, Pune (Aug 2021 – Present)
+- I handle most of the backend work on our loan origination platform built with Django and PostgreSQL.
+- Rewrote the document verification module — it used to break on scanned PDFs. After the fix we went from failing 30% of uploads to less than 2%.
+- Wrote the API layer for our mobile app. I work with the Android team regularly to sort out payload formats, error codes, things like that.
+- Set up Docker containers for local development because everyone was running into "works on my machine" problems.
+- Helped onboard 2 new hires — walked them through the codebase, reviewed their first few PRs.
+
+Software Developer — QuickByte Solutions, Bangalore (Jun 2018 – Jul 2021)
+- Worked on a food delivery management tool used by restaurant partners. The backend was Flask with MySQL.
+- Added a reporting feature where restaurant owners could see their daily/weekly order stats. Built the SQL queries myself — some were pretty gnarly with 5-6 joins.
+- Fixed a login bug that was locking out users after password resets. It had been open for 3 months before I got to it.
+- Maintained a cron-based notification system that sent SMS alerts to delivery riders using Twilio.
+
+Intern — ByteWorks, Pune (Jan 2018 – May 2018)
+- Wrote scripts in Python to clean up messy CSV exports from the sales team.
+- Built a simple Flask dashboard to show daily sales numbers.
+
+EDUCATION
+B.E. Computer Engineering — Pune University (2014 – 2018)
+Scored 72% aggregate. Was part of the coding club, placed 3rd in an inter-college hackathon.
+
+PROJECTS
+- Bill Splitter: A small web app I built for splitting restaurant bills with friends. React frontend, Flask backend, hosted on a free Heroku tier (before they removed it). Nothing fancy but my friends actually use it.
+- Home Network Monitor: Raspberry Pi script that pings all devices on my home network and sends me a Telegram message if something goes offline. Used Python and cron jobs.
+
+CERTIFICATIONS
+AWS Cloud Practitioner (2023)
+
+LANGUAGES
+English, Hindi, Marathi
