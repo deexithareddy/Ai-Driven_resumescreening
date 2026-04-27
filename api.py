@@ -22,7 +22,7 @@ from flask import Flask, request, jsonify, Response
 from logger import get_logger
 from utils import validate_input, redact_pii
 from resume_screener import compute_match_score, get_top_matching_terms
-from ai_detector import detect_ai_content, detect_ai_sections
+from ai_detector import detect_ai_content, detect_ai_sections, detect_ai_sentences
 from skill_extractor import compare_skills
 from decision_engine import get_decision_summary
 from tips_generator import generate_tips, get_general_advice, generate_interview_questions
@@ -197,6 +197,9 @@ def screen_resume():
         skill_data                 = compare_skills(resume_text, jd_text)
         top_terms                  = get_top_matching_terms(resume_text, jd_text, top_n=10)
         ai_sections                = detect_ai_sections(resume_text)
+        sentence_analysis          = detect_ai_sentences(resume_text)
+        print(f"SENTENCE ANALYSIS: {sentence_analysis}")
+        print(f"DEBUG sentence_analysis: {len(sentence_analysis)} sentences | levels: {[s['level'] for s in sentence_analysis]}")
         parsed_resume              = parse_resume(resume_text, jd_text)
 
         # ── Semantic Similarity (Sentence-BERT) ───────────────────────────
@@ -292,6 +295,7 @@ def screen_resume():
         "skill_analysis": result["skill_analysis"],
         "top_keywords"  : top_terms,
         "ai_sections"   : ai_sections,
+        "sentence_analysis": sentence_analysis,
         "parsed_resume" : parsed_resume,
         "thresholds"    : result["thresholds"],
         "details"       : {

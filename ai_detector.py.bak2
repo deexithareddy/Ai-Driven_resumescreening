@@ -1,0 +1,1170 @@
+"""
+ai_detector.py
+--------------
+AI Content Detection Engine for the Resume Screening System.
+
+VERSION 3.0 â€” HYBRID ML + HEURISTIC ARCHITECTURE
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+Replaces the v2 heuristic-only system with a data-driven approach:
+
+    70%  â€”  ML Model (Logistic Regression on 12 statistical features)
+    30%  â€”  Simplified Heuristic Signals (3 statistical signals, no keyword lists)
+
+WHY ML IS BETTER THAN PURE HEURISTICS:
+    Heuristic v2 matched specific keywords ("proven track record", "spearheaded")
+    which triggered false positives on well-written human resumes that naturally
+    use professional language. The ML model instead learns the statistical
+    fingerprint of AI text â€” uniform sentence lengths, low entropy, predictable
+    word distributions â€” which generalizes far better.
+
+CLASSIFICATION (v3.1 â€” lowered thresholds to reduce false positives):
+    0â€“40   â†’ "Likely Human"
+    40â€“70  â†’ "Uncertain"
+    70â€“100 â†’ "Likely AI"
+
+SECTION FILTERING:
+    Skills sections, bullet-point lists, and headers are EXCLUDED from
+    per-sentence analysis. Only paragraph-based content (summaries,
+    experience descriptions) is scored.
+
+GRACEFUL DEGRADATION:
+    If the trained model file is not found, falls back to heuristic-only mode.
+    Run `python train_model.py` to generate the model.
+
+BACKWARD COMPATIBILITY:
+    - detect_ai_content(text) â†’ Tuple[float, dict]  (unchanged)
+    - detect_ai_sections(text) â†’ list                (unchanged)
+    - Response dict format is compatible with api.py, app.py, main.py
+"""
+
+import os
+import math
+import pickle
+import re
+import statistics
+from typing import Tuple, List, Dict
+from collections import Counter
+
+import numpy as np
+import nltk
+from logger import get_logger
+from utils import validate_input
+from config import MIN_SENTENCES_FOR_DETECTION
+
+# Import the feature extraction module
+from feature_extractor import extract_features, extract_features_dict, FEATURE_NAMES
+
+logger = get_logger(__name__)
+
+
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+#  NLTK SETUP
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+def _ensure_nltk_data() -> None:
+    datasets = [
+        ("tokenizers/punkt", "punkt"),
+        ("tokenizers/punkt_tab", "punkt_tab"),
+        ("corpora/stopwords", "stopwords"),
+    ]
+    for path, name in datasets:
+        try:
+            nltk.data.find(path)
+        except LookupError:
+            logger.info(f"Downloading NLTK dataset: '{name}'...")
+            nltk.download(name, quiet=True)
+
+_ensure_nltk_data()
+
+
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+#  TOKENIZATION HELPERS
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+def _tokenize_sentences(text: str) -> list:
+    try:
+        sentences = nltk.sent_tokenize(text)
+        return [s.strip() for s in sentences if s.strip()]
+    except Exception as e:
+        logger.warning(f"Sentence tokenization failed: {e}. Falling back to period split.")
+        return [s.strip() for s in text.split(".") if s.strip()]
+
+
+def _tokenize_words(sentence: str) -> list:
+    try:
+        tokens = nltk.word_tokenize(sentence)
+        return [t for t in tokens if t.isalpha()]
+    except Exception:
+        return sentence.split()
+
+
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+#  CONTACT / HEADER DETECTION (for per-sentence analysis)
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+_EMAIL_RE = re.compile(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}')
+_PHONE_RE = re.compile(r'[\+]?[\d\s\-().]{7,15}')
+_URL_RE   = re.compile(r'https?://|www\.|linkedin\.com|github\.com', re.I)
+
+def _is_contact_or_header(sentence: str) -> bool:
+    """Return True if the sentence looks like contact info or a short header."""
+    stripped = sentence.strip()
+    words = stripped.split()
+
+    if len(words) <= 4:
+        return True
+    if _EMAIL_RE.search(stripped):
+        return True
+    if _URL_RE.search(stripped):
+        return True
+
+    alpha_words = [w for w in words if any(c.isalpha() for c in w)]
+    if len(alpha_words) <= 2 and _PHONE_RE.search(stripped):
+        return True
+
+    header_keywords = [
+        "education", "experience", "skills", "projects", "certifications",
+        "summary", "objective", "references", "awards", "publications",
+        "work history", "professional experience", "technical skills",
+        "contact", "personal details", "qualifications",
+    ]
+    if stripped.lower().rstrip(':').strip() in header_keywords:
+        return True
+    if stripped.isupper() and len(words) <= 5:
+        return True
+
+    return False
+
+
+# â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• 
+#  METADATA REMOVAL  (strips PII / headers before AI scoring)
+# â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• 
+
+_NAME_RE   = re.compile(r'^[A-Z][a-z]+ [A-Z][a-z]+(\s+[A-Z][a-z]+)?$')
+_SYMBOL_RE = re.compile(r'[|\-\u2022\u2013\u2014]')  # pipe, hyphen, bullet, en/em dash
+
+
+def remove_non_content(text: str) -> str:
+    """
+    Strip metadata / header content from resume text BEFORE AI scoring.
+
+    Removes:
+      â€¢ Email addresses
+      â€¢ Phone numbers
+      â€¢ URLs / social-media handles
+      â€¢ Lines shorter than 20 characters (headers, section labels)
+      â€¢ Lines dominated by separator symbols (|  -  â€¢  --  etc.)
+      â€¢ Lines that look like a personâ€™s name ("Arjun Reddy")
+
+    Keeps only paragraph-level written content (summaries, experience
+    descriptions, project narratives) that genuinely reflects writing style.
+
+    Args:
+        text: Raw resume text.
+
+    Returns:
+        Cleaned text suitable for AI-style analysis.
+    """
+    # 1. Strip email addresses
+    text = re.sub(r'\S+@\S+', '', text)
+
+    # 2. Strip phone numbers (various international formats)
+    text = re.sub(r'\+?[\d][\d\s\-().]{7,}', '', text)
+
+    # 3. Strip URLs and social handles
+    text = re.sub(r'https?://\S+', '', text, flags=re.I)
+    text = re.sub(r'www\.\S+', '', text, flags=re.I)
+    text = re.sub(r'linkedin\.com/\S*', '', text, flags=re.I)
+    text = re.sub(r'github\.com/\S*', '', text, flags=re.I)
+
+    filtered = []
+    for line in text.split('\n'):
+        clean = line.strip()
+
+        # Skip very short lines (headers, section labels, lone words)
+        if len(clean) < 20:
+            continue
+
+        # Skip lines dominated by separator symbols
+        if len(_SYMBOL_RE.findall(clean)) > 2:
+            continue
+
+        # Skip bare name lines: "Arjun Reddy" / "John Michael Smith"
+        if _NAME_RE.match(clean):
+            continue
+
+        # Skip lines that start with a separator (e.g. "| Hyderabad, India")
+        if clean.startswith('|') or clean.startswith('-') or clean.startswith('•'):
+            continue
+
+        filtered.append(clean)
+
+    return ' '.join(filtered)
+
+
+def _is_skills_or_bullet(sentence: str) -> bool:
+    """Return True if the sentence is a skills listing or a bullet point.
+
+    Skills sections and bullet-point lists use terse professional language
+    that is identical in both human and AI resumes â€” so scoring them
+    adds noise without discriminative value.
+    """
+    stripped = sentence.strip()
+
+    # Bullet-point lines (starts with â€¢, -, *, â€“, â–ª, â–º, â—†, or numbered)
+    if re.match(r'^[â€¢\-\*â€“â–ªâ–ºâ—†]\s', stripped):
+        return True
+    if re.match(r'^\d+[.):\s]', stripped):
+        return True
+
+    # Comma-separated skill lists ("Python, Java, Docker, AWS")
+    # Heuristic: more than 3 commas in a short line with mostly single words
+    if stripped.count(',') >= 3:
+        parts = [p.strip() for p in stripped.split(',')]
+        avg_part_words = sum(len(p.split()) for p in parts) / len(parts)
+        if avg_part_words <= 3:
+            return True
+
+    # Lines that look like a skills header immediately followed by a list
+    skills_headers = [
+        "skills", "technical skills", "core competencies", "technologies",
+        "tools", "tools & technologies", "programming languages",
+        "frameworks", "certifications", "tools and technologies",
+    ]
+    lower_stripped = stripped.lower().rstrip(':')
+    if lower_stripped in skills_headers:
+        return True
+
+    return False
+
+
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+#  ML MODEL LOADING (lazy, with graceful fallback)
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+MODEL_DIR  = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
+MODEL_PATH = os.path.join(MODEL_DIR, "ai_detector_model.pkl")
+
+_ml_model  = None
+_ml_scaler = None
+_ml_loaded = None  # None = not attempted, True = success, False = failed
+
+
+def _load_ml_model():
+    """Lazy-load the trained ML model. Returns True if available."""
+    global _ml_model, _ml_scaler, _ml_loaded
+
+    if _ml_loaded is True:
+        return True
+    if _ml_loaded is False:
+        return False
+
+    if not os.path.isfile(MODEL_PATH):
+        logger.warning(
+            f"ML model not found at {MODEL_PATH}. "
+            "Falling back to heuristic-only mode. "
+            "Run 'python train_model.py' to train the model."
+        )
+        _ml_loaded = False
+        return False
+
+    try:
+        with open(MODEL_PATH, "rb") as f:
+            payload = pickle.load(f)
+        _ml_model  = payload["model"]
+        _ml_scaler = payload["scaler"]
+        _ml_loaded = True
+        version = payload.get("version", "unknown")
+        metrics = payload.get("metrics", {})
+        logger.info(
+            f"ML model loaded (version={version}, "
+            f"F1={metrics.get('f1_score', 'N/A'):.3f})"
+        )
+        return True
+    except Exception as e:
+        logger.error(f"Failed to load ML model: {e}. Falling back to heuristic-only.")
+        _ml_loaded = False
+        return False
+
+
+def _predict_ml(text: str) -> float:
+    """
+    Get ML model prediction probability (0.0 = human, 1.0 = AI).
+
+    Returns:
+        float: AI probability from the model. Returns 0.5 if model unavailable.
+    """
+    if not _load_ml_model():
+        return 0.5  # Neutral fallback
+
+    try:
+        features = extract_features(text)
+        X = np.array([features])
+        X_scaled = _ml_scaler.transform(X)
+        proba = _ml_model.predict_proba(X_scaled)[0][1]  # P(AI)
+        return float(proba)
+    except Exception as e:
+        logger.warning(f"ML prediction failed: {e}. Using neutral 0.5.")
+        return 0.5
+
+
+# ==============================================================================
+#  SIMPLIFIED HEURISTIC SIGNALS (v3.2)
+#
+#  4 statistical signals -- no keyword/buzzword lists.
+#  Weighted toward linguistic patterns (sentence variance, vocabulary,
+#  repetition) rather than keyword/transition matching.
+# ==============================================================================
+
+def is_resume_style(text: str) -> bool:
+    """
+    Detect whether *text* follows a resume-style layout.
+
+    Resume-style text is characterised by bullet points and very short
+    lines (skill tags, dates, job titles).  These features are completely
+    normal in human resumes and must NOT be penalised by the statistical
+    signals designed for flowing prose.
+
+    Returns True when:
+      - More than 2 lines start with a common bullet marker (•  -  *), OR
+      - More than 40 % of lines contain fewer than 8 words.
+    """
+    lines = text.split('\n')
+    if not lines:
+        return False
+
+    bullet_lines = sum(
+        1 for l in lines if l.strip().startswith(('•', '-', '*'))
+    )
+    short_lines = sum(
+        1 for l in lines if len(l.strip().split()) < 8
+    )
+
+    return (bullet_lines > 2) or (short_lines > len(lines) * 0.4)
+
+
+def _heuristic_sentence_variance(sentences: list) -> float:
+    """
+    Heuristic Signal 1: Sentence length variance (0-100).
+    Low variance = uniform writing = AI-like.
+    AI models produce sentences of remarkably consistent length.
+
+    FIX 3: Short sentences (< 6 words) are excluded from the variance
+    calculation because bullet points and terse resume lines create
+    artificially low variance even in human-written documents.
+    """
+    # FIX 3 – skip short sentences before calculating variance
+    word_counts = [len(_tokenize_words(s)) for s in sentences]
+    word_counts = [wc for wc in word_counts if wc >= 6]  # skip < 6 word sentences
+
+    if len(word_counts) < 3:
+        return 50.0  # Neutral for short texts
+
+    try:
+        var = statistics.variance(word_counts)
+        cv = statistics.stdev(word_counts) / statistics.mean(word_counts) if statistics.mean(word_counts) > 0 else 0
+
+        # AI resumes: CV typically 0.15â€“0.35 (very uniform)
+        # Human resumes: CV typically 0.40â€“1.2 (varied)
+        # v3.1: Shifted thresholds DOWN â€” professional resumes often
+        # have moderate uniformity (CV 0.30-0.50) which is NOT AI.
+        if cv < 0.15:
+            return 85.0
+        elif cv < 0.25:
+            return 60.0
+        elif cv < 0.40:
+            return 35.0
+        elif cv < 0.65:
+            return 15.0
+        else:
+            return 5.0
+    except statistics.StatisticsError:
+        return 50.0
+
+
+def _heuristic_vocabulary_uniformity(text: str) -> float:
+    """
+    Heuristic Signal 2: Vocabulary uniformity (0-100).
+    AI text has lower type-token ratio and higher stopword density.
+    Combines TTR + stopword ratio into a single uniformity score.
+    """
+    try:
+        words = nltk.word_tokenize(text.lower())
+        words = [w for w in words if w.isalpha() and len(w) > 1]
+    except Exception:
+        words = [w.lower() for w in re.findall(r"[a-zA-Z]{2,}", text)]
+
+    if len(words) < 20:
+        return 50.0
+
+    # Type-Token Ratio
+    ttr = len(set(words)) / len(words)
+
+    # Stopword ratio
+    try:
+        stopwords = set(nltk.corpus.stopwords.words("english"))
+    except LookupError:
+        nltk.download("stopwords", quiet=True)
+        stopwords = set(nltk.corpus.stopwords.words("english"))
+
+    sw_ratio = sum(1 for w in words if w in stopwords) / len(words)
+
+    # Combined score:
+    # Low TTR + High stopword ratio = AI-like (score â†’ 100)
+    # High TTR + Low stopword ratio = Human-like (score â†’ 0)
+    # v3.1: Reduced multipliers â€” professional writing naturally has
+    # moderate TTR (0.55-0.70) and stopword ratio (0.30-0.40).
+    ttr_score = max(0, min(100, (1.0 - ttr) * 120))  # Gentler: 120 vs 150
+    sw_score  = max(0, min(100, sw_ratio * 150))       # Gentler: 150 vs 200
+
+    return min(100.0, (ttr_score * 0.5 + sw_score * 0.5))
+
+
+def _heuristic_transition_density(text: str) -> float:
+    """
+    Heuristic Signal 3: Transition/connective density (0-100).
+    AI overuses formal transitions. This is the one "pattern" signal
+    we keep, but it uses generic categories not specific phrases.
+    """
+    text_lower = text.lower()
+    word_count = len(text_lower.split())
+    if word_count < 20:
+        return 50.0
+
+    # Broad transition categories (not specific phrases)
+    transition_patterns = [
+        r'\b(furthermore|moreover|additionally|consequently)\b',
+        r'\b(nevertheless|in addition|in conclusion|as a result)\b',
+        r'\b(specifically|notably|significantly|effectively)\b',
+        r'\b(ultimately|accordingly|subsequently|therefore)\b',
+        r'\b(hence|thus|thereby|meanwhile)\b',
+        r'\bit is (worth noting|important|essential)\b',
+        r'\b(in (particular|this regard|light of))\b',
+    ]
+
+    total_matches = 0
+    for pattern in transition_patterns:
+        total_matches += len(re.findall(pattern, text_lower))
+
+    # Density per 100 words
+    density = total_matches / (word_count / 100)
+
+    # Human resumes: 0-3 per 100 words (professional writing uses some)
+    # AI resumes: 5-10+ per 100 words (overloads them)
+    # v3.1: Raised thresholds â€” a few transitions are normal for
+    # polished resumes. Only flag when density is clearly excessive.
+    if density >= 8.0:
+        return 85.0
+    elif density >= 5.0:
+        return 60.0
+    elif density >= 3.5:
+        return 35.0
+    elif density >= 2.0:
+        return 15.0
+    else:
+        return 5.0
+
+
+def _heuristic_repetition_pattern(text: str) -> float:
+    """
+    Heuristic Signal 4: Word/phrase repetition patterns (0-100).
+
+    AI-generated text reuses the same words and short phrases at a higher
+    rate than human writing. Humans vary their expression naturally;
+    AI models fall into repetitive lexical grooves.
+    """
+    try:
+        words = nltk.word_tokenize(text.lower())
+        words = [w for w in words if w.isalpha() and len(w) > 2]
+    except Exception:
+        words = [w.lower() for w in re.findall(r"[a-zA-Z]{3,}", text)]
+
+    if len(words) < 20:
+        return 50.0
+
+    word_counts = Counter(words)
+    total = len(words)
+    unique = len(word_counts)
+
+    # ---- Metric 1: Word repetition rate ----
+    # Fraction of total word occurrences that are repeated (count > 1)
+    repeated_occ = sum(c for c in word_counts.values() if c > 1)
+    repetition_rate = repeated_occ / total  # 0.0 - 1.0
+
+    # ---- Metric 2: Bigram repetition ----
+    # AI text reuses the same two-word combos more often
+    bigrams = [f"{words[i]} {words[i+1]}" for i in range(len(words) - 1)]
+    bigram_counts = Counter(bigrams)
+    total_bigrams = len(bigrams)
+    repeated_bigrams = sum(c for c in bigram_counts.values() if c > 1)
+    bigram_rep_rate = repeated_bigrams / max(1, total_bigrams)
+
+    # ---- Combined score ----
+    # AI: repetition_rate ~ 0.65-0.85, bigram_rep ~ 0.15-0.35
+    # Human: repetition_rate ~ 0.40-0.60, bigram_rep ~ 0.05-0.15
+    rep_score = max(0, min(100, (repetition_rate - 0.45) * 250))
+    bi_score = max(0, min(100, (bigram_rep_rate - 0.08) * 400))
+
+    return min(100.0, rep_score * 0.6 + bi_score * 0.4)
+
+
+def _compute_heuristic_score(text: str, sentences: list) -> Tuple[float, Dict]:
+    """
+    Compute the combined heuristic score (0-100).
+
+    v3.2 WEIGHTING (linguistic signals prioritized):
+        Sentence variance:      35%  -- most discriminative
+        Vocabulary uniformity:  30%  -- strong AI indicator
+        Repetition patterns:    25%  -- new signal
+        Transition density:     10%  -- reduced (professional resumes use transitions)
+
+    No keyword lists, no buzzword matching.
+    """
+    s1 = _heuristic_sentence_variance(sentences)
+    s2 = _heuristic_vocabulary_uniformity(text)
+    s3 = _heuristic_transition_density(text)
+    s4 = _heuristic_repetition_pattern(text)
+
+    # FIX 4: Reduced weights for structural signals (sentence_variance /
+    # burstiness / predictability) which over-fire on resume-style text.
+    # Vocabulary uniformity and repetition patterns are safer signals and
+    # carry proportionally more weight now.
+    combined = (
+        0.15 * s1 +   # Sentence variance – reduced (resume bullets inflate this)
+        0.40 * s2 +   # Vocabulary diversity – increased (reliable discriminator)
+        0.40 * s4 +   # Repetition patterns – increased (reliable discriminator)
+        0.05 * s3     # Transition density – minimal weight
+    )
+
+    details = {
+        "sentence_variance_score": round(s1, 2),
+        "vocabulary_uniformity_score": round(s2, 2),
+        "transition_density_score": round(s3, 2),
+        "repetition_pattern_score": round(s4, 2),
+        "combined_heuristic_score": round(combined, 2),
+    }
+
+    return combined, details
+
+
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+#  SCORE SMOOTHING & CALIBRATION
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+def _smooth_score(raw: float) -> float:
+    """
+    Apply advanced sigmoid smoothing to avoid extreme outputs.
+
+    v3.2 improvements:
+      - Gentler sigmoid (divisor=18 vs 15) to reduce sudden spikes
+      - Exponential moving average (EMA) blend with raw score
+        to prevent small input changes from causing large output jumps
+      - Tighter clamp [8, 92] -- realistic range for probabilistic detection
+    """
+    # 1. Sigmoid mapping (gentler slope)
+    x = (raw - 50) / 18.0  # v3.2: wider divisor = smoother transitions
+    sigmoid = 1.0 / (1.0 + math.exp(-x))
+    sigmoid_score = sigmoid * 100.0
+
+    # 2. EMA-style blending: 70% sigmoid + 30% raw
+    # This adds inertia -- the score doesn't jump wildly from
+    # small differences in input features
+    blended = 0.70 * sigmoid_score + 0.30 * raw
+
+    # 3. Tighter clamping -- no resume should score below 8 or above 92
+    return round(max(8.0, min(92.0, blended)), 2)
+
+
+# ==============================================================================
+#  PRESENTATION LAYER â€” Human-readable explanations for recruiters
+# ==============================================================================
+
+def _generate_explanation(classification: str, ai_score: float) -> str:
+    """
+    Generate a neutral, professional explanation based on the classification.
+    Avoids strong claims â€” uses probabilistic language throughout.
+    """
+    if classification == "Likely Human":
+        return (
+            f"AI Likelihood: {ai_score:.1f}%. "
+            "The writing patterns in this resume are consistent with human-authored content. "
+            "Natural variation in sentence structure and vocabulary was observed."
+        )
+    elif classification == "Uncertain":
+        return (
+            f"AI Likelihood: {ai_score:.1f}%. "
+            "The content contains mixed characteristics of both human and AI-generated text. "
+            "Some patterns suggest possible AI assistance, but this is not conclusive. "
+            "Manual review is recommended for a final determination."
+        )
+    else:  # Likely AI
+        return (
+            f"AI Likelihood: {ai_score:.1f}%. "
+            "Several indicators suggest this content may have been generated or heavily "
+            "assisted by AI tools. Patterns observed include uniform sentence structure "
+            "and repetitive vocabulary usage."
+        )
+
+
+def _generate_observations(heuristic_details: dict, feature_values: dict) -> list:
+    """
+    Generate a list of neutral, human-readable observations based on signal scores.
+    Only includes observations where a notable pattern was detected.
+    Uses professional, non-alarming language suitable for recruiter review.
+    """
+    observations = []
+
+    # Sentence variance
+    sv = heuristic_details.get("sentence_variance_score", 0)
+    if sv >= 60:
+        observations.append(
+            "Moderate to high uniformity in sentence structure detected. "
+            "AI-generated text tends to produce sentences of consistent length."
+        )
+    elif sv >= 35:
+        observations.append(
+            "Slight uniformity in sentence length observed. "
+            "This is common in both well-structured human writing and AI-generated content."
+        )
+
+    # Vocabulary uniformity
+    vu = heuristic_details.get("vocabulary_uniformity_score", 0)
+    if vu >= 60:
+        observations.append(
+            "Low variation in vocabulary observed. "
+            "The text reuses similar words more frequently than typical human writing."
+        )
+    elif vu >= 35:
+        observations.append(
+            "Moderate vocabulary diversity detected. "
+            "Word choice falls within a range that could indicate either style."
+        )
+    # Repetition
+    rp = heuristic_details.get("repetition_pattern_score", 0)
+    if rp >= 60:
+        observations.append(
+            "Notable repetition patterns identified. "
+            "Certain words and phrases appear with higher frequency than expected in human writing."
+        )
+    elif rp >= 35:
+        observations.append(
+            "Some repetition in word usage was noted, though within an acceptable range."
+        )
+
+    # Transition density
+    td = heuristic_details.get("transition_density_score", 0)
+    if td >= 50:
+        observations.append(
+            "Higher-than-average use of formal transition phrases observed. "
+            "AI tools often overuse connective language such as 'furthermore' and 'moreover'."
+        )
+
+    # If no observations triggered, add a positive note
+    if not observations:
+        observations.append(
+            "No significant indicators of AI-generated content were detected. "
+            "The writing exhibits natural variation across all measured dimensions."
+        )
+
+    return observations
+
+
+# ==============================================================================
+#  MAIN DETECTION FUNCTION
+# ==============================================================================
+
+def detect_ai_content(text: str, _skip_clean: bool = False, _single_sentence: bool = False) -> Tuple[float, dict]:
+    """
+    Detect the likelihood that resume text was AI-generated.
+
+    HYBRID ARCHITECTURE (v3):
+        70% â€” ML Model (Logistic Regression on 12 statistical features)
+        30% â€” Simplified Heuristic (3 statistical signals)
+
+    If ML model is not available, falls back to heuristic-only mode.
+
+    CLASSIFICATION (v3.1):
+        0â€“40  â†’ "Likely Human"
+        40â€“70 â†’ "Uncertain"
+        70â€“100 â†’ "Likely AI"
+
+    NOTE: This is a probabilistic estimate and may not be fully accurate.
+
+    Args:
+        text: Raw resume text.
+
+    Returns:
+        Tuple[float, dict]: (ai_score 0-100, details dict)
+    """
+    logger.info("Starting AI content detection (v3 hybrid ML + heuristic)...")
+
+    if not validate_input(text, "AI Detection Input"):
+        raise ValueError("Input text is invalid or empty.")
+
+    # Strip metadata / PII before analysis so they donâ€™t skew scores
+    text = remove_non_content(text)
+    if not text.strip():
+        # Entire input was metadata â€” return a neutral result
+        logger.warning("All content was stripped as metadata; returning neutral score.")
+        return 25.0, {
+            "sentence_count": 0,
+            "classification": "Likely Human",
+            "note": "Only metadata detected â€” no scorable content",
+            "model_used": "none",
+        }
+
+    sentences = _tokenize_sentences(text)
+    sentence_count = len(sentences)
+
+    # When scoring a single extracted sentence (_single_sentence=True), skip
+    # the minimum-sentence guard — it would always return 25.0 for 1 sentence.
+    if not _single_sentence and sentence_count < MIN_SENTENCES_FOR_DETECTION:
+        logger.warning(
+            f"Only {sentence_count} sentence(s) found. "
+            f"Minimum {MIN_SENTENCES_FOR_DETECTION} required. "
+            "Returning neutral score of 25.0."
+        )
+        return 25.0, {
+            "sentence_count": sentence_count,
+            "classification": "Likely Human",
+            "note": "Insufficient sentences for reliable detection",
+            "model_used": "none",
+        }
+
+    # â”€â”€ ML Model Prediction â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    ml_probability = _predict_ml(text)
+    ml_score = ml_probability * 100.0  # Scale to 0-100
+
+    # â”€â”€ Heuristic Score â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    heuristic_score, heuristic_details = _compute_heuristic_score(text, sentences)
+
+    # â”€â”€ Hybrid Combination â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    model_available = _ml_loaded is True
+
+    if model_available:
+        # 70% ML + 30% heuristic
+        raw_score = 0.70 * ml_score + 0.30 * heuristic_score
+        model_used = "hybrid"
+    else:
+        # Heuristic-only fallback
+        raw_score = heuristic_score
+        model_used = "heuristic-only"
+
+    # -- FIX 2: Resume-mode dampening ----------------------------------------
+    # When the document is resume-style (bullets / short lines), the
+    # statistical signals are unreliable for flowing-prose AI detection.
+    # Halve the raw score so structural formatting does not inflate AI %.
+    if is_resume_style(text):
+        logger.info("Resume-style layout detected - applying 50%% score dampening.")
+        raw_score *= 0.5
+
+    # -- FIX 5: Human-writing bonus ------------------------------------------
+    # Concrete numbers (e.g. "30+", "50%") and specific tool names are strong
+    # signals of genuine human experience.  Deduct 10 points from raw score.
+    _SPECIFIC_TOOLS = [
+        "splunk", "python", "java", "javascript", "typescript", "react",
+        "angular", "vue", "node", "django", "flask", "fastapi", "spring",
+        "kubernetes", "docker", "terraform", "ansible", "jenkins", "git",
+        "aws", "azure", "gcp", "postgresql", "mysql", "mongodb", "redis",
+        "elasticsearch", "kafka", "spark", "hadoop", "tableau", "powerbi",
+        "excel", "figma", "jira", "confluence", "linux", "bash", "powershell",
+    ]
+    text_lower_bonus = text.lower()
+    has_numbers = bool(re.search(r"\d+[+%]|\d{2,}", text))
+    has_specific_tools = any(tool in text_lower_bonus for tool in _SPECIFIC_TOOLS)
+    if has_numbers or has_specific_tools:
+        raw_score = max(0.0, raw_score - 10.0)
+        logger.info(
+            "Human writing bonus applied (-10 pts): "
+            f"numbers={has_numbers}, tools={has_specific_tools}"
+        )
+
+    # -- Smoothing ------------------------------------------------------------
+    ai_score = _smooth_score(raw_score)
+
+    # -- FIX 6: Classification (recalibrated for resume context) -------------
+    # Human-like / Mixed / AI-like thresholds aligned with expected ranges:
+    #   Human resume  ->  10-30 %
+    #   Mixed content ->  30-60 %
+    #   Clearly AI    ->  60 %+
+    if ai_score < 30:
+        classification = "Likely Human"
+    elif ai_score < 60:
+        classification = "Uncertain"
+    else:
+        classification = "Likely AI"
+
+    # -- Feature details (for API transparency) --
+    
+        feature_values = extract_features_dict(text)
+
+    logger.info(
+        f"AI score: {ai_score:.2f}% [{classification}] | "
+        f"ML={ml_score:.1f}% | Heuristic={heuristic_score:.1f}% | "
+        f"Raw={raw_score:.1f}% | Model={model_used}"
+    )
+
+    # -- Generate recruiter-friendly explanation and observations --
+    explanation = _generate_explanation(classification, ai_score)
+    observations = _generate_observations(heuristic_details, feature_values)
+
+    details = {
+        # Primary output (recruiter-facing)
+        "ai_likelihood":     f"{ai_score:.1f}%",
+        "classification":    classification,
+        "explanation":       explanation,
+        "observations":      observations,
+        "disclaimer":        "This is a probabilistic estimate and may not be fully accurate.",
+        # Technical details
+        "sentence_count":    sentence_count,
+        "raw_ai_score":      round(raw_score, 2),
+        "model_used":        model_used,
+        "ml_score":          round(ml_score, 2),
+        "ml_probability":    round(ml_probability, 4),
+        "heuristic_score":   round(heuristic_score, 2),
+        "heuristic_signals": heuristic_details,
+        "features":          feature_values,
+        "signal_breakdown": {
+            "ml_score":                 round(ml_score, 2),
+            "sentence_variance_score":  heuristic_details["sentence_variance_score"],
+            "vocabulary_uniformity_score": heuristic_details["vocabulary_uniformity_score"],
+            "transition_density_score": heuristic_details["transition_density_score"],
+            "repetition_pattern_score": heuristic_details.get("repetition_pattern_score", 0.0),
+        },
+        # Backward compatibility keys (old v2 format -- kept for UI)
+        "buzzword_score":       0.0,
+        "fingerprint_score":    0.0,
+        "hyper_polish_score":   0.0,
+        "generic_score":        0.0,
+        "transition_score":     heuristic_details["transition_density_score"],
+        "variance_score":       heuristic_details["sentence_variance_score"],
+        "diversity_score":      round(feature_values.get("type_token_ratio", 0) * 100, 2),
+        "punct_score":          round(feature_values.get("punctuation_diversity", 0) * 100, 2),
+        "burstiness_score":     0.0,
+        "predictability_score": round(feature_values.get("stopword_ratio", 0) * 100, 2),
+    }
+
+    return ai_score, details
+
+
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+#  PER-SENTENCE ANALYSIS
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+def detect_ai_sections(text: str) -> list:
+    """
+    Analyze each sentence and return a per-sentence AI likelihood score.
+
+    v3.1 â€” Reduced false positives:
+      â€¢ SKIPS contact info, names, emails, short headers
+      â€¢ SKIPS skills sections and bullet-point lists
+      â€¢ Only analyzes paragraph-based content (summaries, experience descriptions)
+      â€¢ Reduced per-sentence signal weights to avoid penalizing professional tone
+
+    Labelling:
+        High   (â‰¥ 25) â€” Strong AI signals
+        Medium (â‰¥ 8)  â€” Some AI indicators
+        Low    (<  8)  â€” Appears human
+
+    NOTE: This is a probabilistic estimate and may not be fully accurate.
+    """
+    if not text or not text.strip():
+        return []
+
+    sentences = _tokenize_sentences(text)
+    results = []
+
+    for idx, sent in enumerate(sentences):
+        if not sent.strip():
+            continue
+
+        sentence_number = idx + 1
+
+        # â”€â”€ Skip contact info and headers â”€â”€
+        if _is_contact_or_header(sent):
+            results.append({
+                "sentence": sent,
+                "sentence_number": sentence_number,
+                "score": 0.0,
+                "label": "Low",
+                "flags": [],
+                "is_excluded": True,
+            })
+            continue
+
+        # â”€â”€ v3.1: Skip skills sections and bullet points â”€â”€
+        # Skills lists and bullet points use identical terse professional
+        # language in both human and AI resumes â€” scoring them only adds
+        # false positives without discriminative value.
+        if _is_skills_or_bullet(sent):
+            results.append({
+                "sentence": sent,
+                "sentence_number": sentence_number,
+                "score": 0.0,
+                "label": "Low",
+                "flags": [],
+                "is_excluded": True,
+            })
+            continue
+
+        words = _tokenize_words(sent)
+        word_count = len(words)
+        sent_lower = sent.lower()
+        flags = []
+        score = 0.0
+
+        # -- Signal 1: Per-sentence vocabulary richness --
+        # Only flag very low diversity which is a genuine AI indicator.
+        if word_count >= 8:
+            unique_words = len(set(w.lower() for w in words))
+            sent_ttr = unique_words / word_count
+            if sent_ttr < 0.45:
+                score += 6.0
+                flags.append(f"Indicators suggest limited vocabulary variation (diversity ratio: {sent_ttr:.2f})")
+            elif sent_ttr < 0.55:
+                score += 2.0
+                flags.append(f"Patterns suggest moderate vocabulary range (diversity ratio: {sent_ttr:.2f})")
+
+        # -- Signal 2: Stopword density (per sentence) --
+        # Only flag extreme stopword density.
+        if word_count >= 8:
+            try:
+                stopwords = set(nltk.corpus.stopwords.words("english"))
+            except LookupError:
+                stopwords = set()
+            sw_count = sum(1 for w in words if w.lower() in stopwords)
+            sw_ratio = sw_count / word_count
+            if sw_ratio >= 0.55:
+                score += 5.0
+                flags.append(f"Patterns observed: high proportion of common function words ({sw_ratio:.0%})")
+            elif sw_ratio >= 0.45:
+                score += 2.0
+                flags.append(f"Patterns observed: moderately elevated function word usage ({sw_ratio:.0%})")
+
+        # -- Signal 3: Formal transition starters --
+        ai_only_starters = [
+            "furthermore", "moreover", "consequently",
+            "in conclusion", "accordingly", "subsequently",
+        ]
+        for starter in ai_only_starters:
+            if sent_lower.strip().startswith(starter):
+                score += 4.0
+                flags.append(f"Indicators suggest AI-typical sentence opener ('{starter}')")
+                break
+
+        # -- Signal 4: Adverb clustering --
+        ai_adverbs = [
+            "diligently", "meticulously", "seamlessly", "flawlessly",
+            "proactively", "comprehensively", "holistically",
+        ]
+        adverb_matches = [a for a in ai_adverbs if a in sent_lower]
+        if len(adverb_matches) >= 2:
+            score += 8.0
+            flags.append(
+                "Indicators suggest AI-style phrasing: multiple formal adverbs detected "
+                f"({chr(44).join(adverb_matches[:3])})"
+            )
+        elif len(adverb_matches) == 1:
+            score += 2.0
+            flags.append(f"Patterns observed: formal adverb usage ('{adverb_matches[0]}'"
+                         + ")")
+
+        # -- Signal 5: Word length uniformity --
+        if word_count >= 10:
+            word_lens = [len(w) for w in words]
+            try:
+                import statistics as _stats
+                wl_cv = _stats.stdev(word_lens) / _stats.mean(word_lens) if _stats.mean(word_lens) > 0 else 0
+                if wl_cv < 0.22:
+                    score += 4.0
+                    flags.append(f"Patterns observed: unusually consistent word lengths (CV={wl_cv:.2f})")
+            except Exception:
+                pass
+
+        # -- Signal 6: Generic quantified impact claims --
+        impact_patterns = [
+            r"improved .{1,30} by \d",
+            r"increased .{1,30} by \d",
+            r"reduced .{1,30} by \d",
+            r"resulting in .{1,20}\d+%",
+        ]
+        import re as _re
+        impact_matches = sum(1 for p in impact_patterns if _re.search(p, sent_lower))
+        if impact_matches >= 2:
+            score += 5.0
+            flags.append("Patterns observed: multiple templated impact claims in a single statement")
+
+        # -- Finalize Score --
+        score = round(min(100.0, max(0.0, score)), 1)
+
+        if score >= 25:
+            label = "High"
+        elif score >= 8:
+            label = "Medium"
+        else:
+            label = "Low"
+
+        results.append({
+            "sentence":        sent,
+            "sentence_number": sentence_number,
+            "score":           score,
+            "label":           label,
+            "flags":           flags,
+            "is_excluded":     False,
+        })
+
+    return results
+
+
+
+# ==============================================================================
+#  SIMPLE SENTENCE SPLITTER  (public utility)
+# ==============================================================================
+
+def split_sentences(text: str) -> list:
+    """
+    Split *text* into individual sentences using punctuation boundaries.
+
+    Returns only sentences with more than 10 characters to filter out
+    noise (e.g. initials, short headings).
+    """
+    import re
+    parts = re.split(r'[.!?]\s+', text)
+    return [s.strip() for s in parts if len(s.strip()) > 10]
+
+
+# ==============================================================================
+#  DETECT_AI_SENTENCES  (public API â€” sentence-level, HIGH/MEDIUM/LOW levels)
+#
+#  Two-path logic keyed on document-level AI score:
+#
+#  PATH A â€” doc score > 25%:
+#      Always return top-2 highest-scoring sentences (force-highlighted).
+#      Labels: score >= 50 â†’ HIGH, otherwise MEDIUM.
+#
+#  PATH B â€” doc score <= 25%:
+#      Only include sentences with score >= 20 (meaningful signal filter).
+#      Absolute fallback: return the single top sentence as MEDIUM.
+#
+#  KEY FIX: individual sentences are scored with _skip_clean=True so they
+#  are NOT passed through remove_non_content() again (a single sentence on
+#  one line is < 20 chars threshold and would be wiped to empty).
+# ==============================================================================
+
+def classify_ai_level(score: float) -> str:
+    """Map a 0-100 AI score to a HIGH / MEDIUM / LOW tier."""
+    if score >= 50:
+        return "HIGH"    # RED
+    elif score >= 25:
+        return "MEDIUM"  # YELLOW
+    else:
+        return "LOW"     # GREEN (fallback label only)
+
+
+def clean_resume_text(text: str) -> str:
+    """
+    Strip personal information and header lines before sentence scoring.
+
+    Removes emails, phones, URLs, LinkedIn/GitHub handles, and the first
+    1-2 lines (typically name / contact header) so they never appear
+    as highlighted AI-signal sentences.
+    """
+    import re as _re
+    # Remove email addresses
+    text = _re.sub(r'\S+@\S+', '', text)
+    # Remove phone numbers (various international formats)
+    text = _re.sub(r'\+?[\d][\d\s\-]{8,}', '', text)
+    # Remove URLs
+    text = _re.sub(r'https?://\S+', '', text, flags=_re.I)
+    text = _re.sub(r'www\.\S+', '', text, flags=_re.I)
+    # Remove LinkedIn / GitHub handles
+    text = _re.sub(r'linkedin\.com/\S*', '', text, flags=_re.I)
+    text = _re.sub(r'github\.com/\S*', '', text, flags=_re.I)
+    # Drop first 1-2 lines (name / contact header)
+    lines = text.split('\n')
+    if len(lines) > 2:
+        lines = lines[2:]
+    return '\n'.join(lines)
+
+
+def detect_ai_sentences(text: str) -> list:
+    """
+    STRICT per-sentence AI likelihood scoring.
+
+    NON-NEGOTIABLE RULE:
+        If doc AI score > 0 (even 1%), AT LEAST ONE sentence is highlighted.
+
+    Steps:
+        1. Strip personal/header content via clean_resume_text().
+        2. Split cleaned text into sentences; score each individually.
+        3. Get document-level score on the ORIGINAL raw text.
+        4. If doc score > 0 and sentences exist: always return top-1
+           (and top-2 when a second sentence exists).
+        5. If doc score == 0: return empty list (genuinely clean document).
+
+    Labels:
+        score >= 50  ->  HIGH   (RED)
+        score  < 50  ->  MEDIUM (YELLOW)
+
+    Args:
+        text: Raw resume text (full document).
+
+    Returns:
+        list[dict] -- [{text, score, level}, ...]
+    """
+    # Step 1: strip personal / header content
+    cleaned_text = clean_resume_text(text)
+    if not cleaned_text.strip():
+        # Fallback to the broader remover if clean_resume_text wiped everything
+        cleaned_text = remove_non_content(text)
+    if not cleaned_text.strip():
+        print("[detect_ai_sentences] Warning: all content stripped as metadata.")
+        return []
+
+    # Step 2: score individual sentences (already cleaned, skip re-cleaning)
+    sentences = split_sentences(cleaned_text)
+    scored = []
+    for s in sentences:
+        s = s.strip()
+        if len(s) < 15:
+            continue
+        # _skip_clean=True avoids double-clean bug (short sentences would be
+        # wiped by remove_non_content's 20-char line filter).
+        # _single_sentence=True bypasses the MIN_SENTENCES guard.
+        score, _ = detect_ai_content(s, _skip_clean=True, _single_sentence=True)
+        scored.append((s, score))
+
+    # Step 3: document-level AI score on original raw text
+    ai_doc_score, _ = detect_ai_content(text)
+
+    # Step 4: sort descending (highest contributors first)
+    scored.sort(key=lambda x: x[1], reverse=True)
+
+    results = []
+
+    if ai_doc_score > 0 and scored:
+        # STRICT RULE: ANY AI signal (even 1%) -> ALWAYS highlight top sentence
+        top_s, top_sc = scored[0]
+        results.append({
+            "text":  top_s,
+            "score": round(top_sc, 2),
+            "level": "HIGH" if top_sc >= 50 else "MEDIUM",
+        })
+        # Also include second-highest sentence for better visibility
+        if len(scored) > 1:
+            s2, sc2 = scored[1]
+            results.append({
+                "text":  s2,
+                "score": round(sc2, 2),
+                "level": "HIGH" if sc2 >= 50 else "MEDIUM",
+            })
+    # else: doc_score == 0 -> clean document, nothing to highlight
+
+    high_c = sum(1 for r in results if r["level"] == "HIGH")
+    mid_c  = sum(1 for r in results if r["level"] == "MEDIUM")
+    print(f"[detect_ai_sentences] doc_score={ai_doc_score:.1f}% | "
+          f"{len(results)} sentences returned | HIGH={high_c} MEDIUM={mid_c}")
+
+    return results
+

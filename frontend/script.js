@@ -27,8 +27,8 @@
 // ════════════════════════════════════════
 // Tab Navigation
 // ════════════════════════════════════════
-const tabBtns    = document.querySelectorAll('.tab-btn');
-const tabPages   = document.querySelectorAll('.tab-page');
+const tabBtns = document.querySelectorAll('.tab-btn');
+const tabPages = document.querySelectorAll('.tab-page');
 
 tabBtns.forEach(btn => {
     btn.addEventListener('click', () => {
@@ -130,10 +130,10 @@ populateDomainSelector();
 // ════════════════════════════════════════
 // Helpers — show / hide sections
 // ════════════════════════════════════════
-const inputSec   = document.getElementById('screen-input-section');
-const loader     = document.getElementById('screen-loader');
-const errorBox   = document.getElementById('screen-error');
-const errorMsg   = document.getElementById('screen-error-msg');
+const inputSec = document.getElementById('screen-input-section');
+const loader = document.getElementById('screen-loader');
+const errorBox = document.getElementById('screen-error');
+const errorMsg = document.getElementById('screen-error-msg');
 const resultsWrap = document.getElementById('screen-results');
 
 function showLoader() {
@@ -165,7 +165,7 @@ let lastScreenResult = null;
 
 document.getElementById('screen-btn').addEventListener('click', async () => {
     const resumeText = document.getElementById('screen-resume').value.trim();
-    const jdText     = document.getElementById('screen-jd').value.trim();
+    const jdText = document.getElementById('screen-jd').value.trim();
 
     if (!resumeText || !jdText) {
         alert('Please provide both a Resume and a Job Description.');
@@ -176,7 +176,7 @@ document.getElementById('screen-btn').addEventListener('click', async () => {
 
     try {
         const settings = getSettings();
-        const res  = await fetch('/api/screen', {
+        const res = await fetch('/api/screen', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -187,6 +187,8 @@ document.getElementById('screen-btn').addEventListener('click', async () => {
             })
         });
         const data = await res.json();
+        console.log('FULL RESPONSE:', data);
+        console.log('SENTENCE DATA:', data.sentence_analysis);
 
         if (!res.ok || !data.success) throw new Error(data.error || 'Analysis failed.');
 
@@ -224,13 +226,13 @@ function renderResults(data) {
 
     // Decision banner
     const iconWrap = document.getElementById('res-icon-wrap');
-    const iconEl   = document.getElementById('res-icon');
+    const iconEl = document.getElementById('res-icon');
     iconWrap.className = 'decision-icon w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 ' + (pass ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600');
-    iconEl.textContent  = pass ? 'task_alt' : 'cancel';
+    iconEl.textContent = pass ? 'task_alt' : 'cancel';
 
     const decisionEl = document.getElementById('res-decision');
-    decisionEl.textContent  = data.decision;
-    decisionEl.className    = 'text-2xl font-extrabold tracking-tight ' + (pass ? 'text-emerald-600' : 'text-red-600');
+    decisionEl.textContent = data.decision;
+    decisionEl.className = 'text-2xl font-extrabold tracking-tight ' + (pass ? 'text-emerald-600' : 'text-red-600');
 
     document.getElementById('res-reason').textContent = data.reason || '';
 
@@ -239,20 +241,20 @@ function renderResults(data) {
     if (confEl && data.confidence) {
         confEl.textContent = data.confidence + ' Confidence';
         const confColors = {
-            'High':   'bg-emerald-100 text-emerald-700 border border-emerald-300',
+            'High': 'bg-emerald-100 text-emerald-700 border border-emerald-300',
             'Medium': 'bg-amber-100 text-amber-700 border border-amber-300',
-            'Low':    'bg-red-100 text-red-700 border border-red-300',
+            'Low': 'bg-red-100 text-red-700 border border-red-300',
         };
         confEl.className = 'text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full ' + (confColors[data.confidence] || confColors['Medium']);
     }
 
     // Scores
     const matchEl = document.getElementById('res-match-val');
-    matchEl.textContent  = data.match_score.toFixed(1) + '%';
-    matchEl.className    = 'score-value text-3xl font-extrabold leading-none ' + scoreClass(data.match_score, 60, 40);
+    matchEl.textContent = data.match_score.toFixed(1) + '%';
+    matchEl.className = 'score-value text-3xl font-extrabold leading-none ' + scoreClass(data.match_score, 60, 40);
 
     const aiEl = document.getElementById('res-ai-val');
-    aiEl.textContent  = data.ai_score.toFixed(1) + '%';
+    aiEl.textContent = data.ai_score.toFixed(1) + '%';
     aiEl.className = 'score-value text-3xl font-extrabold leading-none ' + (data.ai_score < 40 ? 'good' : data.ai_score < 70 ? 'warn' : 'bad');
 
     // Vacancies from settings
@@ -267,7 +269,7 @@ function renderResults(data) {
     if (vacEl) {
         vacEl.textContent = remainingVac + '/' + totalVac;
         if (vacDivider) vacDivider.style.display = '';
-        if (vacWrap)    vacWrap.style.display    = '';
+        if (vacWrap) vacWrap.style.display = '';
 
         // Color code: green = plenty, amber = few left, red = none left
         if (remainingVac === 0) {
@@ -297,11 +299,11 @@ function renderResults(data) {
 
         // Domain mismatch warning
         if (data.domain.domain_mismatch && data.domain.mismatch_note) {
-            if (mismatchEl)  mismatchEl.style.display = 'flex';
+            if (mismatchEl) mismatchEl.style.display = 'flex';
             if (mismatchDiv) mismatchDiv.style.display = '';
             if (mismatchText) mismatchText.textContent = data.domain.mismatch_note;
         } else {
-            if (mismatchEl)  mismatchEl.style.display = 'none';
+            if (mismatchEl) mismatchEl.style.display = 'none';
             if (mismatchDiv) mismatchDiv.style.display = 'none';
         }
     }
@@ -317,23 +319,34 @@ function renderResults(data) {
 
     // Skills
     renderChips('res-matched-skills', data.skill_analysis?.matched_skills || [], 'chip chip-green', 'No matched skills detected.');
-    renderChips('res-missing-skills', data.skill_analysis?.missing_skills || [], 'chip chip-gray',  'All required skills matched! ✅');
+    renderChips('res-missing-skills', data.skill_analysis?.missing_skills || [], 'chip chip-gray', 'All required skills matched! ✅');
 
-    // AI Bar
+    // AI Bar — use classification from API if available, else derive from score
     const pct = Math.min(100, Math.max(0, data.ai_score));
-    const bar  = document.getElementById('res-ai-bar');
-    document.getElementById('res-ai-bar-lbl').textContent = pct.toFixed(1) + '% signals';
+    const bar = document.getElementById('res-ai-bar');
+    const aiClassification = data.details?.ai?.classification || '';
+    const aiExplanation = data.details?.ai?.explanation || '';
+    const aiDisclaimer = data.details?.ai?.disclaimer || 'This is a probabilistic estimate and may not be fully accurate.';
+    const aiObservations = data.details?.ai?.observations || [];
+
+    document.getElementById('res-ai-bar-lbl').textContent = pct.toFixed(1) + '% likelihood';
     setTimeout(() => { bar.style.width = pct + '%'; }, 60);
 
     if (pct >= 70) {
         bar.style.background = '#dc2626';
-        setVerdict('res-ai-verdict', '⚠️ High probability of AI-generated content. Scrutinize carefully.', '#dc2626');
+        setVerdict('res-ai-verdict',
+            aiExplanation || 'Several indicators suggest this content may have been generated or heavily assisted by AI tools. Manual review is recommended.',
+            '#dc2626');
     } else if (pct >= 40) {
         bar.style.background = '#d97706';
-        setVerdict('res-ai-verdict', '⚡ Moderate AI signals detected. Manual review recommended.', '#d97706');
+        setVerdict('res-ai-verdict',
+            aiExplanation || 'The content contains mixed characteristics. Some patterns suggest possible AI assistance, but this is not conclusive.',
+            '#d97706');
     } else {
         bar.style.background = '#059669';
-        setVerdict('res-ai-verdict', '✓ Content appears predominantly human-written.', '#059669');
+        setVerdict('res-ai-verdict',
+            aiExplanation || 'The writing patterns in this resume are consistent with human-authored content. Natural variation in structure and vocabulary was observed.',
+            '#059669');
     }
 
     // AI Stats
@@ -409,13 +422,46 @@ function renderResults(data) {
         statsEl.innerHTML = '<div class="text-on-surface-variant text-sm" style="grid-column:1/-1">Insufficient data for detailed analysis.</div>';
     }
 
+    // ── AI Explanation + Observations + Disclaimer block ──
+    const aiExpWrap = document.getElementById('res-ai-explanation');
+    if (aiExpWrap) {
+        const obsHtml = aiObservations.length
+            ? '<ul style="margin:8px 0 0 0;padding-left:16px;font-size:12px;color:#475569">' +
+            aiObservations.map(o => `<li style="margin-bottom:4px">${esc(o)}</li>`).join('') +
+            '</ul>'
+            : '';
+        aiExpWrap.innerHTML = `
+            <div style="margin-top:12px;padding:12px 14px;background:#f8fafc;border-radius:8px;border-left:3px solid ${pct >= 70 ? '#dc2626' : pct >= 40 ? '#d97706' : '#059669'}">
+                <div style="font-size:12px;font-weight:700;color:#334155;margin-bottom:4px">AI Likelihood: ${pct.toFixed(1)}% &nbsp;·&nbsp; Category: ${aiClassification || (pct >= 70 ? 'Likely AI' : pct >= 40 ? 'Uncertain' : 'Likely Human')}</div>
+                ${obsHtml}
+                <div style="font-size:11px;color:#94a3b8;margin-top:8px;font-style:italic">&#9432; ${esc(aiDisclaimer)}</div>
+            </div>`;
+        aiExpWrap.style.display = '';
+    }
+
     // Keywords
-    const kwEl  = document.getElementById('res-keywords');
-    const kws   = data.top_keywords || [];
+    const kwEl = document.getElementById('res-keywords');
+    const kws = data.top_keywords || [];
     const kwColors = ['chip-purple', 'chip-indigo', 'chip-cyan', 'chip-green'];
     kwEl.innerHTML = kws.length
         ? kws.map((kw, i) => `<span class="chip kw-chip ${kwColors[i % kwColors.length]}">${kw}</span>`).join('')
         : '<span class="chip chip-none">No keywords generated.</span>';
+
+    // ── Sentence-Level AI Analysis ──────────────────────────────────────
+    console.log('FULL RESPONSE:', data);
+    console.log('SENTENCE DATA:', data.sentence_analysis);
+
+    // STEP 6 hard-test override: set window.SA_FORCE_TEST = true in console to verify UI
+    if (window.SA_FORCE_TEST) {
+        console.warn('[HARD TEST MODE] Overriding sentence_analysis with synthetic data');
+        renderSentences([
+            { text: 'This is definitely AI generated sentence.', label: 'ai', score: 72 },
+            { text: 'This looks somewhat structured and polished.', label: 'uncertain', score: 28 },
+            { text: 'I built this project myself from scratch.', label: 'human', score: 5 }
+        ]);
+    } else {
+        renderSentences(data.sentence_analysis || []);
+    }
 
     // ── Resume AI Heatmap ──
     renderHeatmap(data.ai_sections || [], data.details?.ai || {}, data.ai_score || 0);
@@ -454,15 +500,148 @@ function setVerdict(elId, text, color) {
 }
 
 
+// ════════════════════════════════════════════════════════════════════════
+// Sentence-Level AI Detection
+//   level: "HIGH" → 🔴 RED (bg-red-100)  |  "MEDIUM" → 🟡 YELLOW (bg-yellow-100)
+//   NON-NEGOTIABLE: if AI score > 0, at least one sentence MUST be colored.
+//   Frontend renders ALL sentences returned by the backend — no filtering.
+// ════════════════════════════════════════════════════════════════════════
+function renderSentences(sentenceData) {
+    const container = document.getElementById('sentence-analysis');
+    if (!container) {
+        console.error('renderSentences: #sentence-analysis div NOT FOUND in DOM!');
+        return;
+    }
+
+    console.log('renderSentences called with', sentenceData ? sentenceData.length : 0, 'sentences');
+
+    // Only show the green "no patterns" state when the backend genuinely
+    // returned nothing (i.e. AI score == 0 on a clean document).
+    if (!sentenceData || !sentenceData.length) {
+        container.innerHTML =
+            '<div style="padding:12px;background:#ecfdf5;border-radius:8px;' +
+            'border-left:4px solid #10b981;font-size:13px;color:#065f46">' +
+            '🟢 <strong>No AI patterns detected.</strong> ' +
+            'This document scored 0% AI likelihood — no sentences to highlight.</div>';
+        return;
+    }
+
+    container.innerHTML = '';
+
+    // ── Resolve level from item.level or fall back to item.label ────────
+    function resolveLevel(item) {
+        if (item.level) return item.level;
+        const lbl = item.label || 'human';
+        if (lbl === 'ai')        return 'HIGH';
+        if (lbl === 'uncertain') return 'MEDIUM';
+        return 'LOW';
+    }
+
+    const highCount = sentenceData.filter(s => resolveLevel(s) === 'HIGH').length;
+    const midCount  = sentenceData.filter(s => resolveLevel(s) === 'MEDIUM').length;
+    const lowCount  = sentenceData.filter(s => resolveLevel(s) === 'LOW').length;
+
+    // ── Legend / stats bar ───────────────────────────────────────────────
+    const statsBar = document.createElement('div');
+    statsBar.style.cssText =
+        'display:flex;gap:14px;flex-wrap:wrap;align-items:center;' +
+        'margin-bottom:14px;padding:10px 16px;' +
+        'background:#f8fafc;border-radius:10px;' +
+        'border:1px solid #e2e8f0;font-size:12px;font-weight:600;';
+    statsBar.innerHTML =
+        (highCount ? `<span style="color:#dc2626;">🔴 <strong>${highCount}</strong> High AI likelihood</span>` : '') +
+        (midCount  ? `<span style="color:#d97706;">🟡 <strong>${midCount}</strong> Medium indicators</span>` : '') +
+        (lowCount  ? `<span style="color:#059669;">🟢 <strong>${lowCount}</strong> Human-like</span>` : '') +
+        `<span style="margin-left:auto;color:#64748b;font-weight:400;">${sentenceData.length} sentence${sentenceData.length !== 1 ? 's' : ''} highlighted</span>`;
+    container.appendChild(statsBar);
+
+    // ── Render ALL returned sentences (no client-side filtering) ─────────
+    const textWrap = document.createElement('div');
+    textWrap.style.cssText = 'line-height:2.6;font-size:0.875rem;word-break:break-word;';
+    container.appendChild(textWrap);
+
+    // COLOR RULES:
+    //   HIGH   → RED    (bg-red-200  / text-red-800)
+    //   MEDIUM → YELLOW (bg-yellow-200 / text-yellow-800)
+    //   LOW    → GREEN  (subtle, rarely returned)
+    const palette = {
+        HIGH: {
+            bg:      '#fee2e2',            // red-100
+            bgHover: '#fecaca',            // red-200
+            border:  '2px solid #ef4444', // red-500
+            text:    '#991b1b',            // red-800
+            tip:     '🔴 High AI likelihood',
+        },
+        MEDIUM: {
+            bg:      '#fef9c3',            // yellow-100
+            bgHover: '#fef08a',            // yellow-200
+            border:  '2px solid #eab308', // yellow-500
+            text:    '#713f12',            // yellow-900
+            tip:     '🟡 Medium AI indicators',
+        },
+        LOW: {
+            bg:      'rgba(5,150,105,0.10)',
+            bgHover: 'rgba(5,150,105,0.20)',
+            border:  '2px solid rgba(5,150,105,0.50)',
+            text:    '#065f46',
+            tip:     '🟢 Human-like writing',
+        },
+    };
+
+    sentenceData.forEach(item => {
+        if (!item.text || !item.text.trim()) return;
+
+        const level  = resolveLevel(item);
+        const score  = Number(item.score || 0).toFixed(1);
+        const cfg    = palette[level] || palette.MEDIUM;
+        const tipTxt = `${cfg.tip} — AI Score: ${score}%`;
+
+        const span = document.createElement('span');
+        span.style.backgroundColor = cfg.bg;
+        span.style.borderBottom    = cfg.border;
+        span.style.borderRadius    = '4px';
+        span.style.padding         = '3px 7px';
+        span.style.margin          = '0 3px 6px 0';
+        span.style.display         = 'inline';
+        span.style.cursor          = 'help';
+        span.style.transition      = 'background-color 0.15s ease';
+        span.style.color           = cfg.text;
+        span.style.fontWeight      = level === 'HIGH' ? '600' : 'inherit';
+        span.title                 = tipTxt;
+        span.textContent           = item.text.trim() + ' ';
+
+        span.addEventListener('mouseenter', () => { span.style.backgroundColor = cfg.bgHover; });
+        span.addEventListener('mouseleave',  () => { span.style.backgroundColor = cfg.bg; });
+
+        textWrap.appendChild(span);
+    });
+
+    // ── Explanation disclaimer ────────────────────────────────────────────
+    const disclaimer = document.createElement('p');
+    disclaimer.style.cssText =
+        'margin-top:14px;padding:10px 14px;font-size:11.5px;' +
+        'color:#64748b;font-style:italic;' +
+        'background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;';
+    disclaimer.textContent =
+        'ℹ Only sentences with meaningful AI patterns are highlighted. ' +
+        'When overall AI score is moderate, top contributing sentences are highlighted ' +
+        'even if individual scores are not very high.';
+    container.appendChild(disclaimer);
+
+    console.log(`renderSentences COMPLETE: HIGH=${highCount} / MEDIUM=${midCount} / LOW=${lowCount}`);
+}
+
+
+
 // ════════════════════════════════════════
 // Resume AI Heatmap
 // ════════════════════════════════════════
 function renderHeatmap(sections, aiDetails, overallScore) {
-    aiDetails    = aiDetails    || {};
+    aiDetails = aiDetails || {};
     overallScore = overallScore || 0;
 
-    const heatmapEl     = document.getElementById('res-heatmap');
-    const summaryEl     = document.getElementById('res-heatmap-summary');
+    const heatmapEl = document.getElementById('res-heatmap');
+    const summaryEl = document.getElementById('res-heatmap-summary');
     const flaggedListEl = document.getElementById('res-flagged-lines');
 
     if (!sections || !sections.length) {
@@ -480,31 +659,31 @@ function renderHeatmap(sections, aiDetails, overallScore) {
     }
 
     let aiCount = 0, maybeCount = 0, humanCount = 0;
-    const flaggedLines  = [];   // High + Medium sentences for the detail panel
-    const allScored     = [];   // All non-excluded sentences with their scores (for fallback)
+    const flaggedLines = [];   // High + Medium sentences for the detail panel
+    const allScored = [];   // All non-excluded sentences with their scores (for fallback)
 
     // ── classMap: keys match backend labels ('High'/'Medium'/'Low') ──
     const classMap = {
-        'High':   'sent-ai-yes',    // Red   — definite AI signal
+        'High': 'sent-ai-yes',    // Red   — definite AI signal
         'Medium': 'sent-ai-maybe',  // Amber — suspicious
-        'Low':    'sent-ai-no',     // Green — appears human
+        'Low': 'sent-ai-no',     // Green — appears human
     };
 
     const html = sections.map((s, i) => {
-        const label    = s.label || 'Low';
-        const cls      = classMap[label] || 'sent-ai-no';
-        const score    = (s.score || 0).toFixed(1);
-        const lineNum  = s.sentence_number || (i + 1);
+        const label = s.label || 'Low';
+        const cls = classMap[label] || 'sent-ai-no';
+        const score = (s.score || 0).toFixed(1);
+        const lineNum = s.sentence_number || (i + 1);
         const excluded = s.is_excluded || false;
-        const flags    = (s.flags && s.flags.length) ? s.flags.join(' · ') : 'No AI signals detected';
-        const tip      = excluded
+        const flags = (s.flags && s.flags.length) ? s.flags.join(' · ') : 'No AI signals detected';
+        const tip = excluded
             ? `Line ${lineNum}: Personal info / section header — excluded from AI analysis (always Human-Written)`
             : `Line ${lineNum} | AI Score: ${score}% — ${flags}`;
 
-        if (!excluded) allScored.push({lineNum, score: parseFloat(score), flags, label, sentence: s.sentence});
+        if (!excluded) allScored.push({ lineNum, score: parseFloat(score), flags, label, sentence: s.sentence });
 
-        if (label === 'High')        { aiCount++;    if (!excluded) flaggedLines.push({lineNum, score, flags, label, sentence: s.sentence}); }
-        else if (label === 'Medium') { maybeCount++; if (!excluded) flaggedLines.push({lineNum, score, flags, label, sentence: s.sentence}); }
+        if (label === 'High') { aiCount++; if (!excluded) flaggedLines.push({ lineNum, score, flags, label, sentence: s.sentence }); }
+        else if (label === 'Medium') { maybeCount++; if (!excluded) flaggedLines.push({ lineNum, score, flags, label, sentence: s.sentence }); }
         else humanCount++;
 
         return `<span class="${cls}" title="${esc(tip)}" data-line="${lineNum}"><sup style="font-size:9px;opacity:0.55;vertical-align:super;margin-right:1px">${lineNum}</sup>${esc(s.sentence)}</span> `;
@@ -513,9 +692,9 @@ function renderHeatmap(sections, aiDetails, overallScore) {
     heatmapEl.innerHTML = html;
 
     summaryEl.innerHTML = `
-        <span style="color:#ef4444;font-weight:700">🔴 <strong>${aiCount}</strong> AI-Generated (High)</span>
-        <span style="color:#d97706;font-weight:600">🟡 <strong>${maybeCount}</strong> Suspicious (Medium)</span>
-        <span style="color:#10b981;font-weight:500">🟢 <strong>${humanCount}</strong> Human-Written</span>
+        <span style="color:#ef4444;font-weight:700">&#9679; <strong>${aiCount}</strong> Indicators observed (High)</span>
+        <span style="color:#d97706;font-weight:600">&#9679; <strong>${maybeCount}</strong> Patterns noted (Medium)</span>
+        <span style="color:#10b981;font-weight:500">&#9679; <strong>${humanCount}</strong> Appears human-written</span>
         <span style="margin-left:auto;font-weight:600">Total: <strong>${sections.length}</strong> sentences</span>
     `;
 
@@ -525,11 +704,11 @@ function renderHeatmap(sections, aiDetails, overallScore) {
     function flagCard(f, note) {
         const isHigh = f.label === 'High';
         const borderColor = isHigh ? '#ef4444' : '#f59e0b';
-        const bgColor     = isHigh ? '#fef2f2' : '#fffbeb';
-        const textColor   = isHigh ? '#991b1b' : '#92400e';
-        const badgeBg     = isHigh ? '#ef4444' : '#f59e0b';
-        const badgeLabel  = isHigh ? '🔴 AI DETECTED' : '🟡 SUSPICIOUS';
-        const scoreColor  = isHigh ? '#dc2626' : '#d97706';
+        const bgColor = isHigh ? '#fef2f2' : '#fffbeb';
+        const textColor = isHigh ? '#991b1b' : '#92400e';
+        const badgeBg = isHigh ? '#ef4444' : '#f59e0b';
+        const badgeLabel = isHigh ? 'Indicators Observed' : 'Patterns Noted';
+        const scoreColor = isHigh ? '#dc2626' : '#d97706';
         return `
             <div style="border-left:4px solid ${borderColor};background:${bgColor};border-radius:0 10px 10px 0;padding:14px 18px;margin-bottom:10px">
                 <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">
@@ -559,32 +738,32 @@ function renderHeatmap(sections, aiDetails, overallScore) {
 
     } else if (overallScore > 5) {
         // ── Statistical-signal case: overall AI score exists but no per-line patterns ──
-        // The overall score comes from DOCUMENT-LEVEL statistical signals (predictability,
-        // burstiness, sentence length variance). Show the breakdown + top-3 most
-        // AI-like sentences by raw score so the user knows WHERE it's coming from.
+        // The score comes from DOCUMENT-LEVEL statistical signals (sentence variance,
+        // vocabulary uniformity, repetition patterns). No sentence reached the
+        // flagging threshold, so we explain this clearly without showing low-score lines.
 
         const sb = aiDetails.signal_breakdown || {};
         const sigLabels = {
             predictability_score: 'Word Predictability (common word density)',
-            burstiness_score:     'Burstiness (uniform AI-phrase distribution)',
-            variance_score:       'Sentence Length Uniformity',
-            diversity_score:      'Vocabulary Repetition (low TTR)',
-            punct_score:          'Punctuation Simplicity',
-            buzzword_score:       'AI Buzzwords',
-            fingerprint_score:    'ChatGPT Fingerprint Phrases',
-            transition_score:     'Transition Word Overuse',
+            burstiness_score: 'Burstiness (uniform AI-phrase distribution)',
+            variance_score: 'Sentence Length Uniformity',
+            diversity_score: 'Vocabulary Repetition (low TTR)',
+            punct_score: 'Punctuation Simplicity',
+            buzzword_score: 'AI Buzzwords',
+            fingerprint_score: 'ChatGPT Fingerprint Phrases',
+            transition_score: 'Transition Word Overuse',
         };
 
         const topSignals = Object.entries(sigLabels)
-            .map(([k, label]) => ({label, val: sb[k] ?? 0}))
+            .map(([k, label]) => ({ label, val: sb[k] ?? 0 }))
             .filter(s => s.val >= 15)
             .sort((a, b) => b.val - a.val);
 
         const signalBarsHtml = topSignals.length ? `
             <div style="margin-top:14px;margin-bottom:8px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.6px">📊 Document-Level Signals Driving the ${overallScore.toFixed(1)}% AI Score:</div>
             ${topSignals.map(s => {
-                const color = s.val >= 60 ? '#dc2626' : s.val >= 35 ? '#d97706' : '#64748b';
-                return `
+            const color = s.val >= 60 ? '#dc2626' : s.val >= 35 ? '#d97706' : '#64748b';
+            return `
                     <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
                         <span style="font-size:11px;color:#475569;min-width:220px">${esc(s.label)}</span>
                         <div style="flex:1;height:8px;background:#e2e8f0;border-radius:8px;overflow:hidden">
@@ -592,16 +771,7 @@ function renderHeatmap(sections, aiDetails, overallScore) {
                         </div>
                         <span style="font-size:11px;font-weight:700;color:${color};min-width:32px;text-align:right">${s.val.toFixed(0)}</span>
                     </div>`;
-            }).join('')}
-        ` : '';
-
-        // Top-3 most suspicious sentences by raw score (even if Low)
-        const top3 = [...allScored].sort((a, b) => b.score - a.score).slice(0, 3).filter(s => s.score > 0);
-        const top3Html = top3.length ? `
-            <div style="margin-top:16px;margin-bottom:8px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.6px">🔎 Most AI-Like Sentences (by statistical profile):</div>
-            ${top3.map(f => flagCard({...f, label: f.score >= 5 ? 'Medium' : 'Low'}, 
-                f.score < 3 ? '⚠️ Score below flagging threshold — shown as a reference for where statistical AI signals concentrate.' : ''
-            )).join('')}
+        }).join('')}
         ` : '';
 
         flaggedListEl.innerHTML = `
@@ -610,21 +780,21 @@ function renderHeatmap(sections, aiDetails, overallScore) {
                     📈 ${overallScore.toFixed(1)}% AI Score — Driven by Statistical Document Patterns
                 </div>
                 <div style="font-size:12px;color:#92400e;line-height:1.6">
-                    No specific AI phrases or fingerprints were found in individual lines. The AI score comes from
+                    No individual sentences crossed the AI flagging threshold. The score reflects
                     <strong>whole-document statistical signals</strong> — things like how predictable the vocabulary is,
-                    how uniformly sentences are structured, and the burstiness of language patterns.
-                    These signals cannot be pinpointed to a single sentence but the most likely contributors are shown below.
+                    how uniformly sentences are structured, and the density of formal language.
+                    Only sentences with meaningful AI patterns are highlighted. Low overall AI scores may come
+                    from weak statistical signals across the document rather than specific sentences.
                 </div>
                 ${signalBarsHtml}
-                ${top3Html}
             </div>
             ${introNote}`;
     } else {
         // ── Clean case: score is low and no lines flagged ──
         flaggedListEl.innerHTML = `
             <div style="display:flex;align-items:center;gap:10px;padding:14px 16px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;color:#065f46;font-size:13px;font-weight:600">
-                <span style="font-size:18px">✅</span>
-                No AI-suspected lines detected. All content appears human-written.
+                <span style="font-size:18px">&#10003;</span>
+                No significant AI indicators detected in individual lines. Content appears consistent with human authorship.
             </div>`;
     }
 }
@@ -788,7 +958,7 @@ function renderParsedResume(parsed) {
 function toggleParsedResume() {
     const wrap = document.getElementById('parsed-details-wrap');
     const icon = document.getElementById('toggle-parsed-icon');
-    const btn  = document.getElementById('toggle-parsed-btn');
+    const btn = document.getElementById('toggle-parsed-btn');
     if (!wrap) return;
 
     const isHidden = wrap.style.display === 'none';
@@ -856,13 +1026,13 @@ async function downloadPdfReport() {
 // ════════════════════════════════════════
 // Batch Processing
 // ════════════════════════════════════════
-const batchBtn  = document.getElementById('batch-btn');
+const batchBtn = document.getElementById('batch-btn');
 const batchProg = document.getElementById('batch-progress');
-const batchRes  = document.getElementById('batch-results');
-const batchTb   = document.getElementById('batch-table-body');
+const batchRes = document.getElementById('batch-results');
+const batchTb = document.getElementById('batch-table-body');
 
 batchBtn.addEventListener('click', async () => {
-    const jdText     = document.getElementById('batch-jd').value.trim();
+    const jdText = document.getElementById('batch-jd').value.trim();
     const resumesRaw = document.getElementById('batch-resumes').value.trim();
 
     if (!jdText || !resumesRaw) { alert('Provide a Job Description and at least one resume.'); return; }
@@ -884,7 +1054,7 @@ batchBtn.addEventListener('click', async () => {
 
             try {
                 const batchSettings = getSettings();
-                const r    = await fetch('/api/screen', {
+                const r = await fetch('/api/screen', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ resume: resumes[i], job_description: jdText, match_threshold: batchSettings.matchThreshold, ai_threshold: batchSettings.aiThreshold })
@@ -931,9 +1101,9 @@ batchBtn.addEventListener('click', async () => {
             const newFilled = s.filledVacancies + batchShortlisted;
             const remaining = Math.max(0, s.jobVacancies - newFilled);
             localStorage.setItem('recruitai_settings', JSON.stringify({
-                matchThreshold:  s.matchThreshold,
-                aiThreshold:     s.aiThreshold,
-                jobVacancies:    s.jobVacancies,
+                matchThreshold: s.matchThreshold,
+                aiThreshold: s.aiThreshold,
+                jobVacancies: s.jobVacancies,
                 filledVacancies: newFilled,
             }));
             updateVacancyTracker();
@@ -972,15 +1142,15 @@ batchBtn.addEventListener('click', async () => {
 // Compare
 // ════════════════════════════════════════
 document.getElementById('comp-btn').addEventListener('click', async () => {
-    const jd   = document.getElementById('comp-jd').value.trim();
+    const jd = document.getElementById('comp-jd').value.trim();
     const resA = document.getElementById('comp-res-a').value.trim();
     const resB = document.getElementById('comp-res-b').value.trim();
 
     if (!jd || !resA || !resB) { alert('Provide the Job Description and both resumes.'); return; }
 
-    const btn    = document.getElementById('comp-btn');
+    const btn = document.getElementById('comp-btn');
     const loader = document.getElementById('comp-loader');
-    const res    = document.getElementById('comp-results');
+    const res = document.getElementById('comp-results');
 
     btn.disabled = true;
     loader.classList.remove('hidden');
@@ -989,8 +1159,8 @@ document.getElementById('comp-btn').addEventListener('click', async () => {
     try {
         const compSettings = getSettings();
         const [a, b] = await Promise.all([
-            fetch('/api/screen', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ resume:resA, job_description:jd, match_threshold: compSettings.matchThreshold, ai_threshold: compSettings.aiThreshold }) }).then(r => r.json()),
-            fetch('/api/screen', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ resume:resB, job_description:jd, match_threshold: compSettings.matchThreshold, ai_threshold: compSettings.aiThreshold }) }).then(r => r.json())
+            fetch('/api/screen', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resume: resA, job_description: jd, match_threshold: compSettings.matchThreshold, ai_threshold: compSettings.aiThreshold }) }).then(r => r.json()),
+            fetch('/api/screen', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resume: resB, job_description: jd, match_threshold: compSettings.matchThreshold, ai_threshold: compSettings.aiThreshold }) }).then(r => r.json())
         ]);
 
         if (!a.success || !b.success) throw new Error('One or both analyses failed.');
@@ -1014,7 +1184,7 @@ document.getElementById('comp-btn').addEventListener('click', async () => {
 });
 
 function buildCompCard(data, name, color) {
-    const pass  = data.decision === 'SHORTLISTED';
+    const pass = data.decision === 'SHORTLISTED';
     const skills = (data.skill_analysis?.matched_skills || []).slice(0, 6);
     return `
         <div style="border-bottom:1px solid #e2e8f0;padding-bottom:14px;margin-bottom:16px">
@@ -1036,8 +1206,8 @@ function buildCompCard(data, name, color) {
             <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:#64748b;margin-bottom:8px">Matched Skills</div>
             <div class="chip-wrap">
                 ${skills.length
-                    ? skills.map(s => `<span class="chip chip-indigo">${s}</span>`).join('')
-                    : '<span class="chip chip-none">None detected</span>'}
+            ? skills.map(s => `<span class="chip chip-indigo">${s}</span>`).join('')
+            : '<span class="chip chip-none">None detected</span>'}
             </div>
         </div>`;
 }
@@ -1063,12 +1233,12 @@ function saveToHistory() {
 }
 
 function renderHistory() {
-    const listEl  = document.getElementById('history-list');
+    const listEl = document.getElementById('history-list');
     const emptyEl = document.getElementById('history-empty');
     listEl.innerHTML = '';
 
     let hist = [];
-    try { hist = JSON.parse(localStorage.getItem('ai_recruit_history') || '[]'); } catch {}
+    try { hist = JSON.parse(localStorage.getItem('ai_recruit_history') || '[]'); } catch { }
 
     if (!hist.length) {
         emptyEl.classList.remove('hidden');
@@ -1081,7 +1251,7 @@ function renderHistory() {
 
     hist.forEach(h => {
         const pass = h.decision === 'SHORTLISTED';
-        const d    = h.timestamp ? new Date(h.timestamp).toLocaleString() : 'Unknown';
+        const d = h.timestamp ? new Date(h.timestamp).toLocaleString() : 'Unknown';
         listEl.innerHTML += `
             <div class="card flex items-center gap-5 p-5 flex-wrap" style="border-left:3px solid ${pass ? '#059669' : '#dc2626'}">
                 <div class="flex-1 min-w-[200px]">
@@ -1114,11 +1284,11 @@ function clearHistory() {
 let lastInsightsData = null;
 
 function renderInsights() {
-    const emptyEl   = document.getElementById('insights-empty');
+    const emptyEl = document.getElementById('insights-empty');
     const contentEl = document.getElementById('insights-content');
     const summaryEl = document.getElementById('insights-summary');
-    const adviceEl  = document.getElementById('insights-advice');
-    const tipsEl    = document.getElementById('insights-tips');
+    const adviceEl = document.getElementById('insights-advice');
+    const tipsEl = document.getElementById('insights-tips');
 
     if (!lastInsightsData || !lastInsightsData.tips) {
         emptyEl.classList.remove('hidden');
@@ -1130,14 +1300,14 @@ function renderInsights() {
     contentEl.classList.remove('hidden');
 
     const d = lastInsightsData;
-    const matched  = d.skill_analysis?.matched_skills || [];
-    const missing  = d.skill_analysis?.missing_skills || [];
-    const total    = matched.length + missing.length;
+    const matched = d.skill_analysis?.matched_skills || [];
+    const missing = d.skill_analysis?.missing_skills || [];
+    const total = matched.length + missing.length;
     const coverage = total ? ((matched.length / total) * 100).toFixed(0) : 100;
 
     const highCount = d.tips.filter(t => t.priority.includes('High')).length;
-    const medCount  = d.tips.filter(t => t.priority.includes('Medium')).length;
-    const lowCount  = d.tips.filter(t => !t.priority.includes('High') && !t.priority.includes('Medium')).length;
+    const medCount = d.tips.filter(t => t.priority.includes('Medium')).length;
+    const lowCount = d.tips.filter(t => !t.priority.includes('High') && !t.priority.includes('Medium')).length;
 
     // Summary stats
     summaryEl.innerHTML = `
@@ -1186,9 +1356,9 @@ function renderInsights() {
 
     tipsEl.innerHTML = d.tips.map(tip => {
         const isHigh = tip.priority.includes('High');
-        const isMed  = tip.priority.includes('Medium');
+        const isMed = tip.priority.includes('Medium');
         const pClass = isHigh ? 'high' : isMed ? 'medium' : 'low';
-        const pIcon  = isHigh ? 'priority_high' : isMed ? 'trending_up' : 'check_circle';
+        const pIcon = isHigh ? 'priority_high' : isMed ? 'trending_up' : 'check_circle';
         const pLabel = isHigh ? 'High Priority' : isMed ? 'Medium Priority' : 'Nice to Have';
 
         return `
@@ -1213,12 +1383,12 @@ function renderInsights() {
 // File Upload
 // ════════════════════════════════════════
 (function initFileUpload() {
-    const zone     = document.getElementById('upload-zone');
-    const fileIn   = document.getElementById('resume-file-input');
-    const content  = document.getElementById('upload-zone-content');
-    const fileLbl  = document.getElementById('upload-zone-file');
-    const loading  = document.getElementById('upload-zone-loading');
-    const fnameEl  = document.getElementById('upload-filename');
+    const zone = document.getElementById('upload-zone');
+    const fileIn = document.getElementById('resume-file-input');
+    const content = document.getElementById('upload-zone-content');
+    const fileLbl = document.getElementById('upload-zone-file');
+    const loading = document.getElementById('upload-zone-loading');
+    const fnameEl = document.getElementById('upload-filename');
     const removeBtn = document.getElementById('upload-remove-btn');
     if (!zone || !fileIn) return;
 
@@ -1267,7 +1437,7 @@ function renderInsights() {
             const formData = new FormData();
             formData.append('file', file);
 
-            const res  = await fetch('/api/upload', { method: 'POST', body: formData });
+            const res = await fetch('/api/upload', { method: 'POST', body: formData });
             const data = await res.json();
 
             if (!res.ok || !data.success) throw new Error(data.error || 'Upload failed.');
@@ -1298,12 +1468,12 @@ function removeUploadedFile() {
 // JD File Upload
 // ════════════════════════════════════════
 (function initJdFileUpload() {
-    const zone     = document.getElementById('jd-upload-zone');
-    const fileIn   = document.getElementById('jd-file-input');
-    const content  = document.getElementById('jd-upload-zone-content');
-    const fileLbl  = document.getElementById('jd-upload-zone-file');
-    const loading  = document.getElementById('jd-upload-zone-loading');
-    const fnameEl  = document.getElementById('jd-upload-filename');
+    const zone = document.getElementById('jd-upload-zone');
+    const fileIn = document.getElementById('jd-file-input');
+    const content = document.getElementById('jd-upload-zone-content');
+    const fileLbl = document.getElementById('jd-upload-zone-file');
+    const loading = document.getElementById('jd-upload-zone-loading');
+    const fnameEl = document.getElementById('jd-upload-filename');
     const removeBtn = document.getElementById('jd-upload-remove-btn');
     if (!zone || !fileIn) return;
 
@@ -1352,7 +1522,7 @@ function removeUploadedFile() {
             const formData = new FormData();
             formData.append('file', file);
 
-            const res  = await fetch('/api/upload', { method: 'POST', body: formData });
+            const res = await fetch('/api/upload', { method: 'POST', body: formData });
             const data = await res.json();
 
             if (!res.ok || !data.success) throw new Error(data.error || 'Upload failed.');
@@ -1521,10 +1691,10 @@ function openEmailModal() {
 
     // Auto-extract candidate name and email from resume
     const resumeText = document.getElementById('screen-resume')?.value || '';
-    const detectedName  = extractCandidateName(resumeText);
+    const detectedName = extractCandidateName(resumeText);
     const detectedEmail = extractCandidateEmail(resumeText);
 
-    if (detectedName)  document.getElementById('email-candidate-name').value = detectedName;
+    if (detectedName) document.getElementById('email-candidate-name').value = detectedName;
     if (detectedEmail) document.getElementById('email-to').value = detectedEmail;
 
     // Build auto-generated email preview
@@ -1548,11 +1718,11 @@ function closeEmailModal() {
 }
 
 async function sendEmailResults() {
-    const toEmail       = document.getElementById('email-to').value.trim();
+    const toEmail = document.getElementById('email-to').value.trim();
     const candidateName = document.getElementById('email-candidate-name').value.trim() || 'Candidate';
-    const sendBtn       = document.getElementById('btn-send-email');
+    const sendBtn = document.getElementById('btn-send-email');
 
-    if (!toEmail)          { showEmailStatus('❌ Please enter the candidate email.', false); return; }
+    if (!toEmail) { showEmailStatus('❌ Please enter the candidate email.', false); return; }
     if (!lastScreenResult) { showEmailStatus('❌ No screening results to send.', false); return; }
 
     sendBtn.disabled = true;
@@ -1671,7 +1841,7 @@ function renderCharts(data) {
     // ── 3. AI Breakdown Bar ──
     destroyChart('ai');
     const aiCtx = document.getElementById('chart-ai');
-    const aiD  = data.details?.ai || {};
+    const aiD = data.details?.ai || {};
     if (aiCtx) {
         const labels = ['Uniformity', 'Sent. Length', 'Lex. Diversity', 'Overall'];
         const vals = [
@@ -1715,16 +1885,16 @@ function renderCharts(data) {
 // Settings Tab
 // ════════════════════════════════════════
 const DEFAULT_MATCH_THRESHOLD = 60;
-const DEFAULT_AI_THRESHOLD    = 80;
+const DEFAULT_AI_THRESHOLD = 80;
 
 function getSettings() {
     try {
         const saved = JSON.parse(localStorage.getItem('recruitai_settings') || '{}');
         return {
-            matchThreshold:  saved.matchThreshold  ?? DEFAULT_MATCH_THRESHOLD,
-            aiThreshold:     saved.aiThreshold     ?? DEFAULT_AI_THRESHOLD,
-            jobVacancies:    saved.jobVacancies     ?? 1,
-            filledVacancies: saved.filledVacancies  ?? 0,
+            matchThreshold: saved.matchThreshold ?? DEFAULT_MATCH_THRESHOLD,
+            aiThreshold: saved.aiThreshold ?? DEFAULT_AI_THRESHOLD,
+            jobVacancies: saved.jobVacancies ?? 1,
+            filledVacancies: saved.filledVacancies ?? 0,
         };
     } catch {
         return { matchThreshold: DEFAULT_MATCH_THRESHOLD, aiThreshold: DEFAULT_AI_THRESHOLD, jobVacancies: 1, filledVacancies: 0 };
@@ -1734,17 +1904,17 @@ function getSettings() {
 function updateSettingsUI() {
     const s = getSettings();
     const matchSlider = document.getElementById('match-threshold-slider');
-    const aiSlider    = document.getElementById('ai-threshold-slider');
-    const vacSlider   = document.getElementById('vacancies-slider');
-    const vacInput    = document.getElementById('vacancies-input');
+    const aiSlider = document.getElementById('ai-threshold-slider');
+    const vacSlider = document.getElementById('vacancies-slider');
+    const vacInput = document.getElementById('vacancies-input');
     if (matchSlider) matchSlider.value = s.matchThreshold;
-    if (aiSlider)    aiSlider.value    = s.aiThreshold;
-    if (vacSlider)   vacSlider.value   = Math.min(50, s.jobVacancies);
-    if (vacInput)    vacInput.value    = s.jobVacancies;
+    if (aiSlider) aiSlider.value = s.aiThreshold;
+    if (vacSlider) vacSlider.value = Math.min(50, s.jobVacancies);
+    if (vacInput) vacInput.value = s.jobVacancies;
     document.getElementById('match-threshold-val').textContent = s.matchThreshold;
-    document.getElementById('ai-threshold-val').textContent    = s.aiThreshold;
-    document.getElementById('summary-match').textContent       = s.matchThreshold + '%';
-    document.getElementById('summary-ai').textContent          = s.aiThreshold + '%';
+    document.getElementById('ai-threshold-val').textContent = s.aiThreshold;
+    document.getElementById('summary-match').textContent = s.matchThreshold + '%';
+    document.getElementById('summary-ai').textContent = s.aiThreshold + '%';
     const sumVacEl = document.getElementById('summary-vacancies');
     if (sumVacEl) sumVacEl.textContent = s.jobVacancies;
 
@@ -1752,7 +1922,7 @@ function updateSettingsUI() {
 
     // Compute strictness
     const matchStrictness = s.matchThreshold / 100;
-    const aiStrictness    = (100 - s.aiThreshold) / 100;
+    const aiStrictness = (100 - s.aiThreshold) / 100;
     const avg = (matchStrictness + aiStrictness) / 2;
     let label, color;
     if (avg >= 0.7) { label = 'Very Strict'; color = '#dc2626'; }
@@ -1766,14 +1936,14 @@ function updateSettingsUI() {
 
 function saveSettings() {
     const matchVal = parseInt(document.getElementById('match-threshold-slider').value);
-    const aiVal    = parseInt(document.getElementById('ai-threshold-slider').value);
+    const aiVal = parseInt(document.getElementById('ai-threshold-slider').value);
     const vacInput = document.getElementById('vacancies-input');
-    const vacVal   = Math.max(1, parseInt(vacInput?.value || document.getElementById('vacancies-slider').value));
+    const vacVal = Math.max(1, parseInt(vacInput?.value || document.getElementById('vacancies-slider').value));
     const currentSettings = getSettings();
     localStorage.setItem('recruitai_settings', JSON.stringify({
-        matchThreshold:  matchVal,
-        aiThreshold:     aiVal,
-        jobVacancies:    vacVal,
+        matchThreshold: matchVal,
+        aiThreshold: aiVal,
+        jobVacancies: vacVal,
         filledVacancies: currentSettings.filledVacancies,
     }));
     updateSettingsUI();
@@ -1794,20 +1964,20 @@ function resetSettings() {
 // Wire up sliders
 (function initSettingsSliders() {
     const matchSlider = document.getElementById('match-threshold-slider');
-    const aiSlider    = document.getElementById('ai-threshold-slider');
-    const vacSlider   = document.getElementById('vacancies-slider');
+    const aiSlider = document.getElementById('ai-threshold-slider');
+    const vacSlider = document.getElementById('vacancies-slider');
 
     if (matchSlider) {
         matchSlider.addEventListener('input', () => {
             document.getElementById('match-threshold-val').textContent = matchSlider.value;
-            document.getElementById('summary-match').textContent       = matchSlider.value + '%';
+            document.getElementById('summary-match').textContent = matchSlider.value + '%';
             updateStrictnessPreview();
         });
     }
     if (aiSlider) {
         aiSlider.addEventListener('input', () => {
             document.getElementById('ai-threshold-val').textContent = aiSlider.value;
-            document.getElementById('summary-ai').textContent       = aiSlider.value + '%';
+            document.getElementById('summary-ai').textContent = aiSlider.value + '%';
             updateStrictnessPreview();
         });
     }
@@ -1816,8 +1986,8 @@ function resetSettings() {
             const v = parseInt(vacSlider.value);
             const vacInput = document.getElementById('vacancies-input');
             const sumEl = document.getElementById('summary-vacancies');
-            if (vacInput) vacInput.value    = v;
-            if (sumEl)    sumEl.textContent = v;
+            if (vacInput) vacInput.value = v;
+            if (sumEl) sumEl.textContent = v;
             updateTrackerPreview(v);
         });
     }
@@ -1826,44 +1996,44 @@ function resetSettings() {
 })();
 
 function adjustVacancies(delta) {
-    const slider   = document.getElementById('vacancies-slider');
+    const slider = document.getElementById('vacancies-slider');
     const vacInput = document.getElementById('vacancies-input');
-    const sumEl    = document.getElementById('summary-vacancies');
+    const sumEl = document.getElementById('summary-vacancies');
     if (!vacInput) return;
     let current = parseInt(vacInput.value) || 1;
-    let newVal  = Math.max(1, current + delta);
+    let newVal = Math.max(1, current + delta);
     vacInput.value = newVal;
     if (slider) slider.value = Math.min(50, newVal);
-    if (sumEl)  sumEl.textContent = newVal;
+    if (sumEl) sumEl.textContent = newVal;
     updateTrackerPreview(newVal);
 }
 
 function setVacanciesFromInput() {
     const vacInput = document.getElementById('vacancies-input');
-    const slider   = document.getElementById('vacancies-slider');
-    const sumEl    = document.getElementById('summary-vacancies');
+    const slider = document.getElementById('vacancies-slider');
+    const sumEl = document.getElementById('summary-vacancies');
     if (!vacInput) return;
     let val = Math.max(1, parseInt(vacInput.value) || 1);
     vacInput.value = val;
     if (slider) slider.value = Math.min(50, val);
-    if (sumEl)  sumEl.textContent = val;
+    if (sumEl) sumEl.textContent = val;
     updateTrackerPreview(val);
 }
 
 function updateTrackerPreview(previewTotal) {
     const s = getSettings();
-    const filled    = s.filledVacancies;
+    const filled = s.filledVacancies;
     const remaining = Math.max(0, previewTotal - filled);
-    const pct       = previewTotal > 0 ? Math.min(100, (filled / previewTotal) * 100) : 0;
+    const pct = previewTotal > 0 ? Math.min(100, (filled / previewTotal) * 100) : 0;
 
-    const totalEl     = document.getElementById('tracker-total');
+    const totalEl = document.getElementById('tracker-total');
     const remainingEl = document.getElementById('tracker-remaining');
-    const barEl       = document.getElementById('tracker-bar');
-    const statusEl    = document.getElementById('tracker-status-text');
+    const barEl = document.getElementById('tracker-bar');
+    const statusEl = document.getElementById('tracker-status-text');
 
-    if (totalEl)     totalEl.textContent     = previewTotal;
+    if (totalEl) totalEl.textContent = previewTotal;
     if (remainingEl) remainingEl.textContent = remaining;
-    if (barEl)       barEl.style.width       = pct + '%';
+    if (barEl) barEl.style.width = pct + '%';
 
     if (statusEl) {
         if (filled === 0) {
@@ -1889,9 +2059,9 @@ function recordShortlist() {
     const s = getSettings();
     const newFilled = s.filledVacancies + 1;
     localStorage.setItem('recruitai_settings', JSON.stringify({
-        matchThreshold:  s.matchThreshold,
-        aiThreshold:     s.aiThreshold,
-        jobVacancies:    s.jobVacancies,
+        matchThreshold: s.matchThreshold,
+        aiThreshold: s.aiThreshold,
+        jobVacancies: s.jobVacancies,
         filledVacancies: newFilled,
     }));
     updateVacancyTracker();
@@ -1900,9 +2070,9 @@ function recordShortlist() {
 function resetFilledVacancies() {
     const s = getSettings();
     localStorage.setItem('recruitai_settings', JSON.stringify({
-        matchThreshold:  s.matchThreshold,
-        aiThreshold:     s.aiThreshold,
-        jobVacancies:    s.jobVacancies,
+        matchThreshold: s.matchThreshold,
+        aiThreshold: s.aiThreshold,
+        jobVacancies: s.jobVacancies,
         filledVacancies: 0,
     }));
     updateVacancyTracker();
@@ -1910,21 +2080,21 @@ function resetFilledVacancies() {
 
 function updateVacancyTracker() {
     const s = getSettings();
-    const total     = s.jobVacancies;
-    const filled    = s.filledVacancies;
+    const total = s.jobVacancies;
+    const filled = s.filledVacancies;
     const remaining = Math.max(0, total - filled);
-    const pct       = total > 0 ? Math.min(100, (filled / total) * 100) : 0;
+    const pct = total > 0 ? Math.min(100, (filled / total) * 100) : 0;
 
-    const totalEl     = document.getElementById('tracker-total');
-    const filledEl    = document.getElementById('tracker-filled');
+    const totalEl = document.getElementById('tracker-total');
+    const filledEl = document.getElementById('tracker-filled');
     const remainingEl = document.getElementById('tracker-remaining');
-    const barEl       = document.getElementById('tracker-bar');
-    const statusEl    = document.getElementById('tracker-status-text');
+    const barEl = document.getElementById('tracker-bar');
+    const statusEl = document.getElementById('tracker-status-text');
 
-    if (totalEl)     totalEl.textContent     = total;
-    if (filledEl)    filledEl.textContent    = filled;
+    if (totalEl) totalEl.textContent = total;
+    if (filledEl) filledEl.textContent = filled;
     if (remainingEl) remainingEl.textContent = remaining;
-    if (barEl)       barEl.style.width       = pct + '%';
+    if (barEl) barEl.style.width = pct + '%';
 
     if (statusEl) {
         if (filled === 0) {
@@ -1948,9 +2118,9 @@ function updateVacancyTracker() {
 
 function updateStrictnessPreview() {
     const matchVal = parseInt(document.getElementById('match-threshold-slider').value);
-    const aiVal    = parseInt(document.getElementById('ai-threshold-slider').value);
+    const aiVal = parseInt(document.getElementById('ai-threshold-slider').value);
     const matchStrictness = matchVal / 100;
-    const aiStrictness    = (100 - aiVal) / 100;
+    const aiStrictness = (100 - aiVal) / 100;
     const avg = (matchStrictness + aiStrictness) / 2;
     let label, color;
     if (avg >= 0.7) { label = 'Very Strict'; color = '#dc2626'; }

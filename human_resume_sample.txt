@@ -1,0 +1,50 @@
+Priya Sharma
+Full Stack Developer
+Email: priya.sharma88@yahoo.com | Phone: +91-90321-45678
+Location: Hyderabad, Telangana | LinkedIn: linkedin.com/in/priyasharma88
+
+ABOUT ME
+I started coding in my final year of college when a friend dragged me into a hackathon. We didn't win, but I stayed up all night writing JavaScript and realized I loved building things that people actually use. I've spent the last 5 years working at two startups where I wore a lot of hats — frontend one day, database migrations the next. I'm strongest in React and Node.js but I've done my share of Python scripts when the backend team needed help. I care about writing code that the next person can actually read.
+
+SKILLS
+Languages: JavaScript, TypeScript, Python, SQL
+Frontend: React, Next.js, HTML/CSS, some Vue from a side project
+Backend: Node.js, Express, Django (used it at one job for about a year)
+Databases: PostgreSQL, MongoDB, Redis for caching
+DevOps: Docker, basic Kubernetes, GitHub Actions for CI/CD
+Other: REST APIs, Figma (enough to talk to designers), Jira, Git
+
+WORK EXPERIENCE
+
+Full Stack Developer — CloudNova Solutions, Hyderabad (Mar 2022 – Present)
+- I own most of the frontend for our SaaS dashboard built in React + TypeScript. It handles around 8,000 daily active users.
+- Rebuilt the search feature from scratch because the old one was painfully slow. Used Elasticsearch and cut average query time from 3.2s to 400ms.
+- Set up a CI/CD pipeline with GitHub Actions that runs tests and deploys to AWS automatically. Before that, someone had to SSH in and deploy manually every time.
+- Mentored a junior developer for 6 months — did weekly code reviews and pair programming sessions.
+- Fixed a nasty memory leak in our Node.js API that was causing the server to restart every 8 hours. Turned out to be unclosed database connections in a loop.
+
+Software Developer — PixelCraft Technologies, Hyderabad (Jul 2019 – Feb 2022)
+- Worked on an e-commerce platform for local artisans. The stack was Django + React + PostgreSQL.
+- Built the order tracking module that showed real-time status updates. Used WebSockets and it was my first time working with them — took me about 2 weeks to get it right.
+- Wrote a data migration script when we moved from MySQL to PostgreSQL. Had to handle about 200,000 records without breaking foreign key relationships. It was messy but it worked.
+- Handled the Razorpay payment integration. The docs were ok but testing edge cases like failed UPI payments took forever.
+- Did on-call rotations once a month. Mostly dealt with server alerts at 2am that turned out to be disk space issues.
+
+Intern — TechMinds, Bangalore (Jan 2019 – Jun 2019)
+- Wrote Python scripts to automate report generation from Google Sheets data.
+- Built an internal tool with Flask that let the HR team track interview schedules. It was ugly but they used it for over a year.
+
+EDUCATION
+B.Tech Computer Science — JNTU Hyderabad (2015 – 2019)
+Scored 7.8 CGPA. Won 2nd place in a college-level coding competition in 2018.
+
+PROJECTS
+- Expense Tracker: Built a personal finance app with React Native and Firebase. Nothing groundbreaking but I use it daily to track my spending. Has about 40 downloads on the Play Store from friends and family.
+- Recipe Finder: A weekend project where I scraped recipes from a few food blogs and built a simple search UI with Next.js. Learned a lot about web scraping and rate limiting the hard way.
+
+CERTIFICATIONS
+AWS Solutions Architect Associate (2023)
+MongoDB Certified Developer (2022)
+
+LANGUAGES
+English, Hindi, Telugu
